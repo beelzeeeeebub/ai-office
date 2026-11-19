@@ -288,7 +288,8 @@ function apiPostJson(body,ok,fail,retried){
     return askKey('Kunci rahasia salah atau kadaluarsa. Kunci lama sudah dihapus — masukkan kunci yang benar.',function(v){
      if(!v)return fail(new Error('Kunci rahasia salah (dibatalkan).'));apiPostJson(body,ok,fail,true)},true);
    }
-   throw new Error(j.error||'gagal')}).catch(fail);
+   if(/WEB_KEY belum/.test(j.error||''))throw new Error('Kunci belum dipasang di Apps Script. Buka Apps Script → Project Settings → Script Properties → tambah WEB_KEY, lalu deploy versi baru.');
+   throw new Error(j.error||'gagal')}).catch(function(e){var m=String(e&&e.message||e);if(/Failed to fetch|NetworkError|Load failed|abort/i.test(m))e=new Error('Tidak bisa terhubung ke server Apps Script. Cek internet lalu coba lagi.');fail(e)});
  };
  var k=getKey();if(k)send(k);else askKey('',function(v){if(v)send(v);else fail(new Error('Kunci rahasia dibutuhkan'))});
 }
@@ -367,7 +368,7 @@ function setPanel(open){$('panel').classList.toggle('off',!open);try{localStorag
 (function(){var v=null;try{v=localStorage.getItem('aio_panel')}catch(e){}setPanel(v===null?window.innerWidth>1100:v==='1')})();
 $('btnPanel').onclick=function(){setPanel($('panel').classList.contains('off'))};
 /* ---- toasts ---- */
-function toast(msg,color){var d=document.createElement('div');d.innerHTML=msg;if(color)d.style.borderLeftColor=color;$('toast').appendChild(d);while($('toast').children.length>4)$('toast').firstChild.remove();setTimeout(function(){d.style.transition='opacity .4s';d.style.opacity=0;setTimeout(function(){d.remove()},450)},4500)}
+function toast(msg,color,ms){var d=document.createElement('div');d.innerHTML=msg;if(color)d.style.borderLeftColor=color;$('toast').appendChild(d);while($('toast').children.length>4)$('toast').firstChild.remove();setTimeout(function(){d.style.transition='opacity .4s';d.style.opacity=0;setTimeout(function(){d.remove()},450)},ms||4500)}
 function notifyNew(){
  var acts=(state.activity||[]),key=acts.length+'|'+(acts.length?acts[acts.length-1].waktu+acts[acts.length-1].aksi:'');
  if(lastActKey!==null&&key!==lastActKey){
@@ -511,7 +512,7 @@ function optimistic(tid,fT,fA){
 }
 function runAct(fn,args,okMsg,color){
  actBusy++;var my=++actSeq;
- API.act(fn,args,function(r){actBusy--;toast(esc(r||okMsg),color);actSeq++;poll()},function(e){actBusy--;actSeq++;toast('⚠ Gagal: '+esc(e&&e.message||e)+' — dikembalikan.','#f87171');poll()});
+ API.act(fn,args,function(r){actBusy--;toast(esc(r||okMsg),color);actSeq++;poll()},function(e){actBusy--;actSeq++;toast('⚠ Gagal: '+esc(e&&e.message||e)+' — perubahan dikembalikan.','#f87171',10000);poll()});
 }
 function doApprove(tid){
  if(!(window.PREVIEW)&&!getKey())return ensureKey(function(){doApprove(tid)});
@@ -889,13 +890,92 @@ tallPlant(9.4,-3.0,1);plant(0.6,-3.0,0.85);
 /* ===== INVESTMENT ===== */
 HOME.Anna=desk(14.2,-10.3,2.4,'Anna',2,['chart','doc']);
 HOME.Cio=desk(18.2,-10.3,2.6,'Cio',3,['chart','chart','sheet'],'nopot');
-var TRADE=[];
-function drawTrade(cx,w,h,i,ph){cx.fillStyle='#121620';cx.fillRect(0,0,w,h);cx.strokeStyle='rgba(255,255,255,.07)';cx.lineWidth=1;for(var y=20;y<h;y+=24){cx.beginPath();cx.moveTo(0,y);cx.lineTo(w,y);cx.stroke()}
- if(i===0){cx.strokeStyle='#39d98a';cx.lineWidth=3;cx.beginPath();for(var k=0;k<=40;k++){var x=10+k*((w-20)/40),yy=120-Math.sin(k*0.35+ph)*45-Math.sin(k*1.1+ph*1.7)*14;k?cx.lineTo(x,yy):cx.moveTo(x,yy)}cx.stroke()}
- else if(i===1){for(var c=0;c<22;c++){var v=rnd(c+Math.floor(ph*1.5)),hh=20+v*60,x2=14+c*((w-28)/22);cx.fillStyle=v>0.45?'#39d98a':'#ff5d5d';cx.fillRect(x2,120-hh/2,12,hh);cx.fillRect(x2+5,120-hh/2-12,2,hh+24)}}
- else{for(var b=0;b<12;b++){var v2=0.5+0.45*Math.sin(b*0.9+ph);cx.fillStyle='#5aa9ff';cx.fillRect(16+b*((w-32)/12),h-14-v2*150,22,v2*150)}}
- cx.fillStyle='rgba(255,255,255,.85)';cx.font='800 20px Inter,sans-serif';cx.textAlign='left';cx.textBaseline='alphabetic';cx.fillText(['IHSG (contoh)','BTC (contoh)','Sektor (contoh)'][i],12,28)}
-[13.4,18.0,22.6].forEach(function(x,i){var t=canvasTex(512,224,function(cx,w,h){drawTrade(cx,w,h,i,0)});TRADE.push({t:t,i:i});wallBoard(x,1.75,NW,0,4.2,1.85,t,'#2a2f3a')});
+/* ===== MARKET SCREENS (data asli, tanpa API key) =====
+ * KIRI: Crypto Fear & Greed (alternative.me, 10 menit) · TENGAH: BTC/USDT 15m (Binance -> Bybit -> OKX -> Coinbase, 5 dtk)
+ * Dua layar saja. Kanvas hanya digambar ulang kalau data berubah (MKT.ver).
+ * Gagal fetch -> tampil "data belum tersedia", nilai terakhir tetap. */
+var MKT=(function(){
+ var LS='aio_mkt_v1',M={ver:{fng:0,btc:0},fng:{ok:false},btc:{ok:false},src:{}};
+ try{var c=JSON.parse(localStorage.getItem(LS)||'{}');['fng','btc'].forEach(function(k){if(c[k]&&c[k].ts){M[k]=c[k];M[k].ok=false;M[k].cached=true}});try{localStorage.removeItem('aio_mkt_top')}catch(e){}}catch(e){}
+ function save(){try{localStorage.setItem(LS,JSON.stringify({fng:M.fng,btc:M.btc}))}catch(e){}}
+ function bump(k){M.ver[k]++;save()}
+ function hhmm(ts){try{return new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(ts)).replace('.',':')}catch(e){return '--:--'}}
+ M.hhmm=hhmm;
+ function fj(url,ms){var ctl=window.AbortController?new AbortController():null,tm=setTimeout(function(){if(ctl)ctl.abort()},ms||12000);
+  return fetch(url,{cache:'no-store',signal:ctl?ctl.signal:undefined}).then(function(r){clearTimeout(tm);if(!r.ok)throw new Error('HTTP '+r.status+' '+url.split('?')[0]);return r.json()},function(e){clearTimeout(tm);throw e})}
+ function setOk(k,ok){if(M[k].ok!==ok){M[k].ok=ok;bump(k)}}
+ /* ---------- BTC/USDT 15m ---------- */
+ var BINS=['https://data-api.binance.vision','https://api.binance.com'];
+ function binK(sym,iv,lim){var i=0;function next(){if(i>=BINS.length)return Promise.reject(new Error('binance'));var b=BINS[i++];
+   return fj(b+'/api/v3/klines?symbol='+sym+'&interval='+iv+'&limit='+lim).then(function(a){if(!Array.isArray(a))throw new Error('fmt');return a},function(e){if(/HTTP 400/.test(String(e&&e.message)))throw e;return next()})}return next()}
+ var BTCSRC=[
+  {n:'Binance',f:function(){return binK('BTCUSDT','15m',100).then(function(a){return a.map(function(k){return{t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})})}},
+  {n:'Bybit',f:function(){return fj('https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=15&limit=100').then(function(j){return j.result.list.slice().reverse().map(function(k){return{t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})})}},
+  {n:'OKX',f:function(){return fj('https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=15m&limit=100').then(function(j){return j.data.slice().reverse().map(function(k){return{t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})})}},
+  {n:'Coinbase (BTC/USD)',f:function(){return fj('https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=900').then(function(a){return a.slice().reverse().slice(-100).map(function(k){return{t:k[0]*1000,o:+k[3],h:+k[2],l:+k[1],c:+k[4]}})})}}];
+ var btcBusy=false,btcPref=0;
+ function pollBtc(){if(btcBusy||document.hidden)return;btcBusy=true;var order=[];for(var i=0;i<BTCSRC.length;i++)order.push((btcPref+i)%BTCSRC.length);
+  (function nx(j){if(j>=order.length){btcBusy=false;setOk('btc',false);return}
+   var s=BTCSRC[order[j]];s.f().then(function(cs){
+    cs=cs.filter(function(k){return isFinite(k.c)&&isFinite(k.o)});if(cs.length<20)throw new Error('data kurang');
+    btcPref=order[j];var n=cs.length,ref=cs[Math.max(0,n-96)].o,last=cs[n-1],now=Date.now();
+    var key=last.t+'|'+last.c+'|'+last.h+'|'+last.l+'|'+hhmm(now)+'|'+s.n;
+    var changed=key!==M.btc.key||!M.btc.ok;
+    M.btc={ok:true,key:key,candles:cs.slice(-60),price:last.c,pct:(last.c/ref-1)*100,src:s.n,ts:now};
+    btcBusy=false;if(changed)bump('btc')},function(){nx(j+1)})})(0)};
+ /* ---------- Fear & Greed ---------- */
+ function pollFng(){fj('https://api.alternative.me/fng/?limit=30').then(function(j){
+   var d=(j.data||[]).filter(function(x){return x&&isFinite(+x.value)});if(!d.length)throw new Error('kosong');
+   var cur=d[0],hist=d.slice().reverse().map(function(x){return+x.value}),now=Date.now();
+   M.fng={ok:true,value:+cur.value,label:cur.value_classification,hist:hist,ts:now,srcTs:+cur.timestamp*1000};bump('fng')},function(){setOk('fng',false)})}
+ M.start=function(){pollBtc();pollFng();setInterval(pollBtc,5000);setInterval(pollFng,600e3);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)pollBtc()})};
+ M.refresh={btc:pollBtc,fng:pollFng};
+ return M})();
+/* ---- gambar layar ---- */
+var TRADE=[],TRW=768,TRH=336;
+function fmtP(v){return v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v.toFixed(2)}
+function mFoot(cx,w,h,k,extra){var d=MKT[k],y=h-9;cx.textBaseline='alphabetic';cx.textAlign='left';cx.font='600 15px Inter,sans-serif';
+ if(d.ts){cx.fillStyle='rgba(255,255,255,.5)';cx.fillText('update '+MKT.hhmm(d.ts)+' WIB'+(extra?' · '+extra:''),12,y)}
+ if(!d.ok){cx.textAlign='right';cx.fillStyle=d.ts?'#ffb454':'#ff8a8a';cx.font='700 15px Inter,sans-serif';cx.fillText('data belum tersedia'+(d.ts?' (nilai terakhir)':''),w-12,y)}}
+function mNone(cx,w,h,t){cx.fillStyle='rgba(255,255,255,.55)';cx.font='700 26px Inter,sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(t||'data belum tersedia',w/2,h/2+8)}
+function fngCol(v){return v<25?'#ea3943':v<45?'#ea8c00':v<56?'#d8c400':v<76?'#93d900':'#16c784'}
+function fngId(l,v){var m={'Extreme Fear':'Ketakutan Ekstrem','Fear':'Takut','Neutral':'Netral','Greed':'Serakah','Extreme Greed':'Keserakahan Ekstrem'};return(m[l]||l||'')}
+function drawTrade(cx,w,h,i){cx.fillStyle='#121620';cx.fillRect(0,0,w,h);
+ if(i===1){var kk='btc',d=MKT[kk],cs=d.candles;
+  cx.fillStyle='rgba(255,255,255,.88)';cx.textBaseline='alphabetic';cx.textAlign='left';cx.font='800 22px Inter,sans-serif';cx.fillText('BTC/USDT · 15m',12,30);
+  if(!cs||!cs.length){mNone(cx,w,h);mFoot(cx,w,h,kk);return}
+  var up=d.pct>=0,col=up?'#39d98a':'#ff5d5d';cx.textAlign='right';cx.fillStyle=col;cx.font='800 30px Inter,sans-serif';cx.fillText('$'+fmtP(d.price),w-12,34);
+  cx.font='700 17px Inter,sans-serif';cx.fillText((up?'▲ +':'▼ ')+d.pct.toFixed(2)+'% (24j)',w-12,56);
+  var L=12,R=w-70,T=70,B=h-30,hi=-1e18,lo=1e18;cs.forEach(function(k){if(k.h>hi)hi=k.h;if(k.l<lo)lo=k.l});var pad=(hi-lo)*0.06||1;hi+=pad;lo-=pad;
+  function Y(v){return T+(hi-v)/(hi-lo)*(B-T)}
+  cx.strokeStyle='rgba(255,255,255,.08)';cx.lineWidth=1;cx.fillStyle='rgba(255,255,255,.45)';cx.font='600 14px Inter,sans-serif';cx.textAlign='left';
+  for(var g=0;g<=4;g++){var v=lo+(hi-lo)*g/4,y=Y(v);cx.beginPath();cx.moveTo(L,y);cx.lineTo(R+4,y);cx.stroke();cx.fillText(fmtP(v),R+8,y+5)}
+  var n=cs.length,step=(R-L)/n,bw=Math.max(2,step*0.62);
+  cs.forEach(function(k,j){var x=L+j*step+step/2,u=k.c>=k.o,cc=u?'#39d98a':'#ff5d5d';cx.strokeStyle=cc;cx.fillStyle=cc;cx.lineWidth=1.5;
+   cx.beginPath();cx.moveTo(x,Y(k.h));cx.lineTo(x,Y(k.l));cx.stroke();var y1=Y(Math.max(k.o,k.c)),y2=Y(Math.min(k.o,k.c));cx.fillRect(x-bw/2,y1,bw,Math.max(1.5,y2-y1))});
+  var yl=Y(d.price);cx.setLineDash([5,4]);cx.strokeStyle=col;cx.lineWidth=1.2;cx.beginPath();cx.moveTo(L,yl);cx.lineTo(R+4,yl);cx.stroke();cx.setLineDash([]);
+  cx.fillStyle=col;cx.fillRect(R+4,yl-10,64,20);cx.fillStyle='#0b0e14';cx.font='800 14px Inter,sans-serif';cx.textAlign='left';cx.fillText(fmtP(d.price),R+8,yl+5);
+  mFoot(cx,w,h,kk,d.src);return}
+ if(i===0){var f=MKT.fng;
+  cx.fillStyle='rgba(255,255,255,.88)';cx.textBaseline='alphabetic';cx.textAlign='left';cx.font='800 22px Inter,sans-serif';cx.fillText('Fear & Greed Index',12,30);
+  if(f.value==null){mNone(cx,w,h);mFoot(cx,w,h,'fng');return}
+  var col2=fngCol(f.value),cxg=135,cyg=205,rg=100;cx.lineCap='butt';cx.lineWidth=22;
+  [[0,25,'#ea3943'],[25,45,'#ea8c00'],[45,56,'#d8c400'],[56,76,'#93d900'],[76,100,'#16c784']].forEach(function(s){cx.strokeStyle=s[2];cx.globalAlpha=0.9;cx.beginPath();cx.arc(cxg,cyg,rg,Math.PI+s[0]/100*Math.PI+0.01,Math.PI+s[1]/100*Math.PI-0.01);cx.stroke()});cx.globalAlpha=1;
+  var an=Math.PI+f.value/100*Math.PI;cx.strokeStyle='#fff';cx.lineWidth=4;cx.beginPath();cx.moveTo(cxg+Math.cos(an)*(rg-30),cyg+Math.sin(an)*(rg-30));cx.lineTo(cxg+Math.cos(an)*(rg+14),cyg+Math.sin(an)*(rg+14));cx.stroke();
+  cx.fillStyle=col2;cx.textAlign='center';cx.font='800 66px Inter,sans-serif';cx.fillText(String(f.value),cxg,cyg-10);
+  cx.font='800 20px Inter,sans-serif';cx.fillText(fngId(f.label,f.value),cxg,cyg+30);cx.fillStyle='rgba(255,255,255,.4)';cx.font='600 13px Inter,sans-serif';cx.fillText('0',cxg-rg,cyg+18);cx.fillText('100',cxg+rg,cyg+18);
+  var hx=290,hw=w-hx-16,hT=78,hB=h-62,hs=f.hist||[];cx.fillStyle='rgba(255,255,255,.55)';cx.font='700 15px Inter,sans-serif';cx.textAlign='left';cx.fillText('30 hari terakhir',hx,hT-8);
+  cx.strokeStyle='rgba(255,255,255,.08)';cx.lineWidth=1;[0,50,100].forEach(function(v){var y=hB-(v/100)*(hB-hT);cx.beginPath();cx.moveTo(hx,y);cx.lineTo(hx+hw,y);cx.stroke();cx.fillStyle='rgba(255,255,255,.35)';cx.font='600 12px Inter,sans-serif';cx.fillText(String(v),hx+hw-22,y-3)});
+  if(hs.length>1){var X=function(k){return hx+k*(hw/(hs.length-1))},Yh=function(v){return hB-(v/100)*(hB-hT)};
+   cx.beginPath();hs.forEach(function(v,k){k?cx.lineTo(X(k),Yh(v)):cx.moveTo(X(k),Yh(v))});cx.lineTo(X(hs.length-1),hB);cx.lineTo(X(0),hB);cx.closePath();cx.fillStyle='rgba(255,255,255,.07)';cx.fill();
+   cx.beginPath();hs.forEach(function(v,k){k?cx.lineTo(X(k),Yh(v)):cx.moveTo(X(k),Yh(v))});cx.strokeStyle=col2;cx.lineWidth=3;cx.lineJoin='round';cx.stroke();
+   cx.fillStyle=col2;cx.beginPath();cx.arc(X(hs.length-1),Yh(hs[hs.length-1]),5,0,7);cx.fill();
+   cx.fillStyle='rgba(255,255,255,.6)';cx.font='600 14px Inter,sans-serif';cx.textAlign='left';cx.fillText('kemarin '+hs[hs.length-2]+' · 30h lalu '+hs[0],hx,hB+22)}
+  mFoot(cx,w,h,'fng','alternative.me');return}}
+var TRKEYS=['fng','btc'];
+[15.3,20.7].forEach(function(x,i){var t=canvasTex(TRW,TRH,function(cx,w,h){drawTrade(cx,w,h,i)});TRADE.push({t:t,i:i,k:TRKEYS[i],ver:MKT.ver[TRKEYS[i]]});wallBoard(x,1.9,NW,0,5.0,2.2,t,'#2a2f3a')});
+MKT.start();
 wallClock(25.0,2.3,NW+0.02,0.22);
 roundTable(22.6,-7.0,0.95,0.74,'#a8754e');rug(20.2,-9.4,25.0,-4.6,'#bfe0c9');
 chair(21.4,-7.0,Math.PI/2,'#2f5d46');chair(23.8,-7.0,-Math.PI/2,'#2f5d46');chair(22.6,-8.2,0,'#2f5d46');chair(22.6,-5.8,Math.PI,'#2f5d46');
@@ -1372,11 +1452,11 @@ function frame(){requestAnimationFrame(frame);var dt=Math.min(0.05,clock.getDelt
  for(var id in AG)animAgent(AG[id],dt,TT);
  updateScreens(dt);
  if(needPick){needPick=false;var h=lastPE?pick(lastPE):null;if(h!==hovered){if(hovered)hovered.hover=0;hovered=h;if(h)h.hover=1;renderer.domElement.style.cursor=h?'pointer':''}}
- acc1+=dt;if(acc1>1){acc1=0;redraw(clockT);TRADE.forEach(function(s){var u=s.t.userData;drawTrade(u.cx,u.cv.width,u.cv.height,s.i,TT*0.6);s.t.needsUpdate=true})}
+ acc1+=dt;if(acc1>1){acc1=0;redraw(clockT);TRADE.forEach(function(s){if(s.ver===MKT.ver[s.k])return;s.ver=MKT.ver[s.k];var u=s.t.userData;drawTrade(u.cx,u.cv.width,u.cv.height,s.i);s.t.needsUpdate=true})}
  renderer.render(scene,camera);updateOverlays()}
 frame();
 var ld=document.getElementById('loading');if(ld){ld.style.opacity=0;setTimeout(function(){ld.remove()},600)}
-window.__AIO3D={ambientNow:function(){return ambientTick(true)},say:say,camera:camera,controls:controls,AG:AG,focusRoom:focusRoom,viewAll:viewAll,setView:function(az,pol){AZ=az;POL=pol;viewAll(true)},go:go,fit:fit,renderer:renderer,OB:OB,G:G,blocked:blocked,R3:R3,SPOTS:SPOTS,HOME:HOME,apOf:apOf,astar:astar,los:los,WALLS:WALLS};
+window.__AIO3D={MKT:MKT,TRADE:TRADE,ambientNow:function(){return ambientTick(true)},say:say,camera:camera,controls:controls,AG:AG,focusRoom:focusRoom,viewAll:viewAll,setView:function(az,pol){AZ=az;POL=pol;viewAll(true)},go:go,fit:fit,renderer:renderer,OB:OB,G:G,blocked:blocked,R3:R3,SPOTS:SPOTS,HOME:HOME,apOf:apOf,astar:astar,los:los,WALLS:WALLS};
 }
 })();
 </script>
