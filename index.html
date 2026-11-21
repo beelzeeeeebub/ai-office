@@ -550,6 +550,20 @@ return {meta:meta,roomName:roomName,doneTaskFor:doneTaskFor,openTask:openTask,op
 <script>
 /* ================= 3D OFFICE (three.js r147) ================= */
 (function(){
+/* ===== KANTOR HIDUP: angka yang bisa diatur (detik; [min,max] = acak di antara keduanya) ===== */
+var LIFE_GAP=[5,11];            /* jeda antar mulainya aktivitas jalan-jalan baru (seluruh kantor) */
+var LIFE_FIRST=[2,5];           /* aktivitas pertama setelah halaman dibuka */
+var LIFE_MAX_ACTIVE=3;          /* maks agent yang sedang jalan-jalan beraktivitas bersamaan */
+var LIFE_COOLDOWN=[45,90];      /* jeda per agent setelah selesai satu aktivitas */
+var LIFE_W={coffee:3,garden:2,paper:2,visit:3}; /* bobot pilihan aktivitas */
+var LIFE_WALK_SPEED=1.6;        /* kecepatan jalan santai (m/dtk) */
+var COFFEE_WAIT=[3,5],CUP_HOLD=[35,70];         /* berdiri di mesin kopi; lama pegang cangkir sesudahnya */
+var GARDEN_STOPS=[1,2],GARDEN_STOP_T=[2,4],WATER_T=[5,7]; /* jumlah titik keliling taman, lama berhenti, lama menyiram */
+var PAPER_WAIT=[2.5,4],PAPER_HOLD=[25,45];      /* ambil kertas di printer/rak; lama pegang/baca kertas */
+var VISIT_T=[8,12],VISIT_MAX_DIST=18;           /* lama ngobrol berdiri di tempat teman; jarak maks teman */
+var MICRO_GAP=[5,12],MICRO_T=[2.5,5];           /* gerakan kecil saat duduk: jeda & lama */
+var WORK_THINK_GAP=[45,100],WORK_THINK_T=[4,7]; /* yang kerja: berdiri mikir/peregangan di samping meja */
+var TYPE_RATE_GAP=[2,6],TYPE_RATES=[0,7,12,17,24]; /* variasi kecepatan ngetik (0 = jeda sebentar) */
 var CDN=['https://cdn.jsdelivr.net/npm/three@0.147.0/','https://unpkg.com/three@0.147.0/'];
 function load(path){return new Promise(function(res,rej){var i=0;(function next(){if(i>=CDN.length)return rej(new Error('load '+path));var s=document.createElement('script');s.src=CDN[i++]+path;s.async=false;s.onload=function(){res()};s.onerror=function(){s.remove();next()};document.head.appendChild(s)})()})}
 function fail(msg){var l=document.getElementById('loading');if(l)l.style.display='none';var e=document.getElementById('err3d');e.style.display='flex';e.innerHTML='<div>'+msg+'<br><small>Panel tugas & popup tetap bisa dipakai lewat tombol ☰ Panel.</small></div>'}
@@ -1106,7 +1120,7 @@ var G={res:0.2,x0:X0-0.5,z0:Z0-0.5};G.w=Math.ceil((X1-X0+1)/G.res);G.h=Math.ceil
  G.b[j*G.w+i]=v}})();
 function gi(x){return Math.floor((x-G.x0)/G.res)}function gj(z){return Math.floor((z-G.z0)/G.res)}
 function blocked(x,z){var i=gi(x),j=gj(z);if(i<0||j<0||i>=G.w||j>=G.h)return true;return G.b[j*G.w+i]!==0}
-function los(a,b){var d=Math.hypot(b.x-a.x,b.z-a.z),n=Math.ceil(d/0.08);for(var k=1;k<n;k++){var t=k/n;if(blocked(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t))return false}return true}
+function los(a,b){var d=Math.hypot(b.x-a.x,b.z-a.z),n=Math.ceil(d/0.04);for(var k=1;k<n;k++){var t=k/n;if(blocked(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t))return false}return true}
 function nearestFree(p){if(!blocked(p.x,p.z))return {x:p.x,z:p.z};for(var r=1;r<40;r++)for(var a=0;a<16;a++){var x=p.x+Math.cos(a*Math.PI/8)*r*G.res,z=p.z+Math.sin(a*Math.PI/8)*r*G.res;if(!blocked(x,z))return {x:x,z:z}}return {x:p.x,z:p.z}}
 function astar(a,b){a=nearestFree(a);b=nearestFree(b);if(los(a,b))return [b];
  var W=G.w,N=W*G.h,si=gi(a.x)+gj(a.z)*W,ti=gi(b.x)+gj(b.z)*W,gS=new Float32Array(N).fill(1e9),from=new Int32Array(N).fill(-1),closed=new Uint8Array(N),heap=[],tx=ti%W,tz=(ti/W)|0;
@@ -1233,6 +1247,14 @@ function buildChibi(id,m){
  if(hs==='bun')P.top=1.72;if(hs==='spiky'&&P.top<1.64)P.top=1.64;
  var cupG=new T.Group();cupG.add(new T.Mesh(geo('cup',function(){return new T.CylinderGeometry(0.06,0.05,0.12,12)}),mat('#ffffff',{r:0.4})));var cof=new T.Mesh(geo('cof',function(){return new T.CircleGeometry(0.052,12)}),mat('#6b4a35'));cof.rotation.x=-Math.PI/2;cof.position.y=0.061;cupG.add(cof);
  cupG.position.set(0,-0.04,0.08);cupG.visible=false;P.handR.add(cupG);P.cup=cupG;
+ /* prop kecil: gembor (siram tanaman), kertas, HP */
+ var canG=new T.Group(),cm2=mat('#3a8f4f',{r:0.45});canG.add(new T.Mesh(geo('canb',function(){return new T.CylinderGeometry(0.075,0.085,0.15,12)}),cm2));
+ var spo=new T.Mesh(geo('cans',function(){return new T.CylinderGeometry(0.012,0.02,0.2,6)}),cm2);spo.position.set(0,0.03,0.12);spo.rotation.x=1.0;canG.add(spo);
+ var hdl=new T.Mesh(geo('canh',function(){return new T.TorusGeometry(0.05,0.012,6,12,Math.PI)}),cm2);hdl.position.set(0,0.08,-0.02);hdl.rotation.y=Math.PI/2;canG.add(hdl);
+ canG.position.set(0,-0.1,0.05);canG.visible=false;P.handR.add(canG);P.can=canG;
+ var pap=new T.Mesh(rbox(0.21,0.29,0.008,0),mat('#fbfbf7',{r:0.8}));pap.position.set(-0.02,-0.06,0.1);pap.rotation.x=-0.5;pap.visible=false;P.handR.add(pap);P.paper=pap;
+ var phG=new T.Group();phG.add(new T.Mesh(rbox(0.085,0.16,0.016,0.012),mat('#1c1d24',{r:0.3})));var scr=new T.Mesh(rbox(0.07,0.135,0.004,0),mat('#7fc8ff',{e:'#5ab0ff',ei:0.9}));scr.position.z=0.009;phG.add(scr);
+ phG.position.set(0.02,-0.08,0.07);phG.rotation.x=-0.9;phG.visible=false;P.handR.add(phG);P.phone=phG;
  var dot=new T.Group();var ds=new T.Mesh(geo('dot',function(){return new T.SphereGeometry(0.085,16,12)}),new T.MeshStandardMaterial({color:col('#22c55e'),emissive:col('#22c55e'),emissiveIntensity:1.4,roughness:0.3}));dot.add(ds);
  var gl=new T.Sprite(new T.SpriteMaterial({map:glowTex,transparent:true,depthWrite:false,blending:T.AdditiveBlending}));gl.scale.set(0.6,0.6,0.6);dot.add(gl);dot.position.y=P.top+0.22;dot.visible=false;body.add(dot);P.dot=dot;P.dotS=ds;P.glow=gl;
  var hit=new T.Mesh(geo('hit',function(){return new T.CylinderGeometry(0.45,0.45,1.95,10)}),new T.MeshBasicMaterial({visible:false}));hit.position.y=0.97;root.add(hit);P.hit=hit;
@@ -1263,7 +1285,7 @@ function pickLounge(a,avoid){var hr=HOMEROOM[a.id],L=(LOUNGE[hr]||[]).filter(fun
  if(Math.random()<0.55){var best=null,bd=-1;L.forEach(function(q){var m=99;for(var k in AG){var b=AG[k];if(b!==a&&b.spot&&b.room==='LOUNGE'&&HOMEROOM[k]===hr)m=Math.min(m,Math.hypot(b.spot.x-q.x,b.spot.z-q.z))}if(m>bd+0.01||(Math.abs(m-bd)<=0.01&&Math.random()<0.5)){bd=m;best=q}});if(best)return best}
  return L[Math.floor(Math.random()*L.length)]}
 var JON_OUT_P=0.15; /* peluang tiap pengecekan (~40-90 dtk) Jon pergi ke Cafe/Taman = kira-kira sekali per 7-8 menit */
-function wander(a){if(a.path.length||!a.row)return;
+function wander(a){if(a.path.length||!a.row||a.act||a.busyUntil>TT)return;
  if(a.room==='LEISURE'){if(a.nextW==null){a.nextW=TT+10+Math.random()*25;return}if(TT<a.nextW)return;a.nextW=null;var s=pickLeisure(a,a.spot);if(s)goTo(a,s,1.5);return}
  if(a.room!=='LOUNGE')return;
  var jon=a.id==='Jon';
@@ -1274,6 +1296,81 @@ function wander(a){if(a.path.length||!a.row)return;
   var n=pickLounge(a,a.spot);if(n&&n!==a.spot)goTo(a,n,1.5);return}
  if(Math.random()<0.5){var q=pickLounge(a,a.spot);if(q)goTo(a,q,1.5)}}
 function taken(spot,except){for(var k in AG){if(k!==except&&AG[k].spot===spot)return true}return false}
+/* ---------- kantor hidup: aktivitas acak (kopi, taman, ambil kertas, mampir ke teman, mikir di samping meja) ---------- */
+function rng(r){return r[0]+Math.random()*(r[1]-r[0])}
+function facePt(x,z,tx,tz){return Math.atan2(tx-x,tz-z)}
+function roomAt(x,z){for(var i=0;i<ROOM_IDS.length;i++){var r=R3[ROOM_IDS[i]];if(x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1)return ROOM_IDS[i]}return null}
+var COFFEE_SPOTS=SPOTS.CAFE.filter(function(q){return q.pose==='stand'});            /* depan meja bar / mesin kopi */
+var PAPER_SPOTS=[SPOTS.PRINT[0],SPOTS.PRINT[1],SPOTS.PRINT[2],SPOTS.LIBRARY[2],SPOTS.LIBRARY[3]]; /* printer, lemari arsip, rak Library */
+var GARDEN_WALK=[sp(19.6,8.0,0.6),sp(17.5,10.0,-2.2),sp(21.0,7.4,2.4),sp(20.4,3.4,-0.4)];
+var WATER_SPOTS=[sp(16.6,6.6,-PI/2),sp(24.2,6.0,PI/2),sp(16.6,8.4,facePt(16.6,8.4,15.6,8.0)),sp(24.45,10.25,facePt(24.45,10.25,24.9,11.0)),sp(21.9,3.6,facePt(21.9,3.6,23.0,3.05))];
+var LIFE_LOG=[];function lifeLog(a,ev,k){LIFE_LOG.push({t:+TT.toFixed(2),id:a.id,ev:ev,k:k||(a.act&&a.act.k)||''});if(LIFE_LOG.length>1000)LIFE_LOG.shift()}
+function isWorking(a){var st=a.row&&a.row.status;return st==='Bekerja'||st==='Revisi'}
+function seated(a){return !a.path.length&&a.spot&&(a.spot.pose==='sit'||a.spot.pose==='desk')&&a.sit>0.6}
+function freeSpot(q,a){if(taken(q,a.id))return false;for(var k in AG){var b=AG[k];if(b!==a&&((b.spot&&Math.hypot(b.spot.x-q.x,b.spot.z-q.z)<0.75)||Math.hypot(b.pos.x-q.x,b.pos.z-q.z)<0.6))return false}return true}
+function pickFree(list,a){var L=list.filter(function(q){return freeSpot(q,a)});return L.length?L[Math.floor(Math.random()*L.length)]:null}
+function lifeEligible(a){return !!(a.row&&!a.act&&!a.carry&&isChill(a)&&!a.outing&&!(a.busyUntil>TT)&&!(a.lifeCd>TT)&&seated(a)&&!(a.sayUntil>TT&&!a.sayAmb))}
+function pickBuddy(a){var L=[];for(var k in AG){var b=AG[k];if(b===a||!isChill(b)||b.act||!seated(b)||b.busyUntil>TT)continue;var d=Math.hypot(b.pos.x-a.pos.x,b.pos.z-a.pos.z);if(d>VISIT_MAX_DIST)continue;L.push(b);if(d<8)L.push(b)}
+ return L.length?L[Math.floor(Math.random()*L.length)]:null}
+function visitSpot(a,b){var rm=roomAt(b.pos.x,b.pos.z),y0=b.spot?b.spot.yaw:0,ofs=[0,0.6,-0.6,1.2,-1.2,1.75,-1.75,2.4,-2.4,PI];
+ for(var r=1.0;r<=1.5;r+=0.25)for(var i=0;i<ofs.length;i++){var an=y0+ofs[i],x=b.pos.x+Math.sin(an)*r,z=b.pos.z+Math.cos(an)*r;
+  if(blocked(x,z)||roomAt(x,z)!==rm)continue;var q=sp(x,z,facePt(x,z,b.pos.x,b.pos.z),'stand');if(freeSpot(q,a))return q}return null}
+function thinkSpot(a){var h=HOME[a.id];if(!h||!h.spot)return null;
+ if(!a._tc){a._tc=[];var d=h.spot,rm=roomAt(d.x,d.z),dx=d.x+Math.sin(d.yaw)*0.6,dz=d.z+Math.cos(d.yaw)*0.6;
+  for(var r=0.9;r<=1.4;r+=0.25)for(var k=0;k<12;k++){var an=d.yaw+PI+k*PI/6,x=d.x+Math.sin(an)*r,z=d.z+Math.cos(an)*r;if(!blocked(x,z)&&roomAt(x,z)===rm)a._tc.push(sp(x,z,facePt(x,z,dx,dz),'stand'))}}
+ return pickFree(a._tc,a)}
+function startAct(a,k){var st=[],q;
+ if(k==='coffee'){q=pickFree(COFFEE_SPOTS,a);if(!q)return false;st.push({s:q,d:rng(COFFEE_WAIT),pose:'reach',give:'cup'})}
+ else if(k==='paper'){q=pickFree(PAPER_SPOTS,a);if(!q)return false;st.push({s:q,d:rng(PAPER_WAIT),pose:'reach',give:'paper'})}
+ else if(k==='garden'){var w=pickFree(WATER_SPOTS,a);if(!w)return false;var G2=GARDEN_WALK.filter(function(g){return freeSpot(g,a)}).sort(function(){return Math.random()-0.5}),n=Math.round(rng(GARDEN_STOPS));
+  for(var i=0;i<n&&i<G2.length;i++)st.push({s:G2[i],d:rng(GARDEN_STOP_T),pose:'look',hold:'can'});st.push({s:w,d:rng(WATER_T),pose:'water',hold:'can'})}
+ else if(k==='visit'){var b=pickBuddy(a);if(!b)return false;q=visitSpot(a,b);if(!q)return false;st.push({s:q,d:rng(VISIT_T),pose:'chat',buddy:b});b.busyUntil=TT+600}
+ else if(k==='think'){q=thinkSpot(a);if(!q)return false;st.push({s:q,d:rng(WORK_THINK_T),pose:Math.random()<0.55?'think':'stretch'})}
+ else return false;
+ a.micro=null;a.act={k:k,steps:st,i:0,until:null,home:a.spot,ret:false};lifeLog(a,'start',k);goTo(a,st[0].s,k==='think'?1.2:LIFE_WALK_SPEED);return true}
+function freeBuddy(a){var c=a.act;if(!c)return;c.steps.forEach(function(x){if(x.buddy&&x.buddy.busyUntil>TT)x.buddy.busyUntil=TT+1.5})}
+/* interrupt=true: status berubah (mis. jadi Bekerja) -> props dilepas, aktivitas batal */
+function endAct(a,interrupt){if(!a.act)return;freeBuddy(a);lifeLog(a,interrupt?'interrupt':'end');if(interrupt){a.carry=null;a.lifeCd=TT+rng(LIFE_COOLDOWN)*0.5}else a.lifeCd=TT+rng(LIFE_COOLDOWN);
+ if(a.act.k==='think')a.thinkNext=TT+rng(WORK_THINK_GAP);a.act=null;a.actPose=null;a.nextW=null}
+function returnSpot(a,home){if(a.act&&a.act.k==='think')return HOME[a.id].spot;
+ if(home&&!taken(home,a.id)&&(home.pose!=='stand'||freeSpot(home,a)))return home;
+ if(a.room==='LOUNGE'){var l=pickLounge(a,null);if(l)return l}var z=pickLeisure(a,null);return z||home}
+function visitChat(a,b){if(!b||AG[b.id]!==b||!isChill(b))return;face(a,b,9);if(!talkOn())return;say(a,pickR(SMALL[a.id]||GEN),true,null,6);
+ setTimeout(function(){if(AG[b.id]===b&&AG[a.id]===a&&a.act&&isChill(b)&&!b.path.length&&talkOn()&&!(b.sayUntil>TT&&!b.sayAmb))say(b,pickR(REPLY),true,null,5)},3200)}
+var lifeNext=null,LIFE_ON=true;
+function lifeTick(){var id,a,c;if(!LIFE_ON)return;
+ for(id in AG){a=AG[id];c=a.act;
+  if(a.carry&&a.carry!=='can'&&!c&&a.carryUntil<TT&&!a.path.length){a.carry=null;lifeLog(a,'drop')}
+  if(!c){
+   /* yang lagi kerja di meja: sesekali berdiri mikir / peregangan di samping meja */
+   if(isWorking(a)&&HOME[id]&&a.spot===HOME[id].spot&&!a.path.length&&(a.sit>0.8||a.spot.pose==='counter')){if(a.thinkNext==null)a.thinkNext=TT+rng(WORK_THINK_GAP);else if(TT>=a.thinkNext&&!startAct(a,'think'))a.thinkNext=TT+10}
+   microTick(a);continue}
+  if(a.path.length)continue;
+  if(c.ret){endAct(a,false);continue}
+  var st=c.steps[c.i];
+  if(c.until==null){c.until=TT+st.d;a.actPose=st.pose;if(st.hold&&a.carry!==st.hold){a.carry=st.hold;lifeLog(a,'take',st.hold)}if(st.buddy)visitChat(a,st.buddy);lifeLog(a,'arrive',st.pose)}
+  else if(TT>=c.until){a.actPose=null;if(st.give){a.carry=st.give;a.carryUntil=TT+(st.give==='cup'?rng(CUP_HOLD):rng(PAPER_HOLD));lifeLog(a,'take',st.give)}
+   if(st.buddy&&st.buddy.busyUntil>TT)st.buddy.busyUntil=TT+1.5;
+   c.i++;c.until=null;
+   /* titik berikutnya sudah dipakai agent lain? cari pengganti, kalau tidak ada lewati */
+   while(c.i<c.steps.length&&!freeSpot(c.steps[c.i].s,a)){var ps=c.steps[c.i].pose,alt=ps==='water'?pickFree(WATER_SPOTS,a):ps==='look'?pickFree(GARDEN_WALK,a):null;if(alt){c.steps[c.i].s=alt;break}c.i++}
+   if(c.i<c.steps.length)goTo(a,c.steps[c.i].s,LIFE_WALK_SPEED);
+   else{if(a.carry==='can'){a.carry=null;lifeLog(a,'drop','can')}c.ret=true;goTo(a,returnSpot(a,c.home),c.k==='think'?1.2:LIFE_WALK_SPEED)}}}
+ if(lifeNext==null)lifeNext=TT+rng(LIFE_FIRST);
+ if(TT<lifeNext)return;lifeNext=TT+rng(LIFE_GAP);
+ var n=0,el=[];for(id in AG){a=AG[id];if(a.act&&a.act.k!=='think')n++;else if(lifeEligible(a))el.push(a)}
+ if(n>=LIFE_MAX_ACTIVE||!el.length){if(!el.length)lifeNext=TT+2;return}
+ el.sort(function(){return Math.random()-0.5});
+ for(var i=0;i<el.length&&i<3;i++){var ks=Object.keys(LIFE_W),tot=0,tries=0;ks.forEach(function(k){tot+=LIFE_W[k]});
+  while(ks.length&&tries++<4){var r=Math.random()*tot,k2=ks[0];for(var j=0;j<ks.length;j++){r-=LIFE_W[ks[j]];if(r<=0){k2=ks[j];break}}
+   if(startAct(el[i],k2))return;tot-=LIFE_W[k2];ks.splice(ks.indexOf(k2),1)}}}
+/* gerakan kecil saat duduk santai: nengok, minum, main HP, peregangan, geser duduk */
+var MICRO_PLAIN=['look','phone','stretch','shift','look','phone'],MICRO_CUP=['sip','sip','look','shift'],MICRO_PAPER=['look','shift','look'];
+function microTick(a){var ok=!a.act&&seated(a)&&a.sit>0.8&&!(isWorking(a)&&a.spot&&a.spot.home);
+ if(!ok){if(a.micro){a.micro=null;a.microNext=TT+rng(MICRO_GAP)}return}
+ if(a.micro){if(TT>=a.microEnd){a.micro=null;a.microNext=TT+rng(MICRO_GAP)}return}
+ if(a.microNext==null){a.microNext=TT+rng(MICRO_GAP);return}if(TT<a.microNext)return;
+ var L=a.carry==='cup'?MICRO_CUP:a.carry==='paper'?MICRO_PAPER:MICRO_PLAIN;a.micro=L[Math.floor(Math.random()*L.length)];a.microDir=Math.random()<0.5?-1:1;a.microEnd=TT+rng(MICRO_T);lifeLog(a,'micro',a.micro)}
 function pickSpot(a,room){
  if(room==='LOUNGE'){var cur=a.spot;
   if(a.room==='LOUNGE'&&cur&&(cur.lounge===HOMEROOM[a.id]||(HOME[a.id]&&cur===HOME[a.id].spot)||SPOTS.LEISURE.indexOf(cur)>=0))return cur;
@@ -1308,9 +1405,9 @@ function syncState(st){if(!st)return;var seen={};
  Object.keys(AG).forEach(function(id){if(!seen[id])removeAgent(id)});
  var rows=st.agents.filter(function(r,i,arr){return arr.findIndex(function(q){return q.id===r.id})===i});
  /* yang pindah ruangan lepas spotnya dulu supaya spot bisa dipakai yang lain */
- var leaving={};rows.forEach(function(row){var a=AG[row.id];if(a.room&&a.room!==roomOf(row)){leaving[row.id]=a.spot;a.spot=null}});
+ var leaving={};rows.forEach(function(row){var a=AG[row.id];if(a.room&&a.room!==roomOf(row)){if(a.act)endAct(a,true);if(a.carry){a.carry=null;lifeLog(a,'drop')}a.micro=null;leaving[row.id]=a.spot;a.spot=null}});
  rows.sort(function(x,y){return (HOMEROOM[x.id]===roomOf(x)?0:1)-(HOMEROOM[y.id]===roomOf(y)?0:1)});
- rows.forEach(function(row){var a=AG[row.id],room=roomOf(row),s=pickSpot(a,room);
+ rows.forEach(function(row){var a=AG[row.id],room=roomOf(row);if(a.act&&a.room===room)return;var s=pickSpot(a,room);
   if(firstState||!a.room)place(a,s);
   else if(leaving[row.id]!==undefined){a.spot=leaving[row.id];goTo(a,s)}
   else if(a.spot!==s)goTo(a,s);
@@ -1341,22 +1438,44 @@ function animAgent(a,dt,t){var P=a.P,row=a.row||{},s=a.spot,moving=a.path.length
  var sitGoal=moving?0:(turned?a.sitT:a.sit);a.sit+=(sitGoal-a.sit)*Math.min(1,dt*(moving?9:6));if(moving&&a.sit<0.06)a.sit=0;
  var atDesk=!moving&&s&&(s.pose==='desk'||s.pose==='counter'),typing=atDesk&&(row.status==='Bekerja'||row.status==='Revisi')&&(a.sit>0.8||s.pose==='counter')?1:0;a.type+=(typing-a.type)*Math.min(1,dt*5);
  var pray=0;a.pray+=(pray-a.pray)*Math.min(1,dt*4);
- var cup=!moving&&s&&s.cup&&a.room==='CAFE'?1:0;a.cupA+=(cup-a.cupA)*Math.min(1,dt*5);P.cup.visible=a.cupA>0.5;
+ var cup=(!moving&&s&&s.cup&&a.room==='CAFE')||a.carry==='cup'?1:0;a.cupA+=(cup-a.cupA)*Math.min(1,dt*5);P.cup.visible=a.cupA>0.5;
  if(walking)a.phase+=dt*Math.min(a.speed,4)*3.6;
  var sw=Math.sin(a.phase)*a.walk;
  P.root.position.set(a.pos.x,0,a.pos.z);P.root.rotation.y=a.yaw;
  P.legL.rotation.x=sw*0.75-a.sit*1.5;P.legR.rotation.x=-sw*0.75-a.sit*1.5;
- var tp=Math.sin(t*15+a.seed),tp2=Math.sin(t*15+a.seed+1.9),restSit=a.sit*(1-a.type)*-0.5;
+ /* kecepatan ngetik bervariasi (kadang cepat, kadang jeda sebentar) */
+ if(typing){if(!(a.tRateNext>t)){a.tRateT=TYPE_RATES[Math.floor(Math.random()*TYPE_RATES.length)];a.tRateNext=t+rng(TYPE_RATE_GAP)}}else a.tRateT=15;
+ a.tRate=(a.tRate==null?15:a.tRate)+((a.tRateT==null?15:a.tRateT)-(a.tRate==null?15:a.tRate))*Math.min(1,dt*3);a.tph=(a.tph||a.seed)+dt*a.tRate;
+ var tAmp=Math.min(1,a.tRate/8),tp=Math.sin(a.tph)*tAmp,tp2=Math.sin(a.tph+1.9)*tAmp,restSit=a.sit*(1-a.type)*-0.5;
+ /* bobot pose aktivitas & gerakan kecil (dihaluskan, tanpa alokasi) */
+ var still=!moving,ap_=a.actPose,mk=a.micro,kk=Math.min(1,dt*5);
+ a.wR=(a.wR||0)+(((still&&ap_==='reach')?1:0)-(a.wR||0))*kk;
+ a.wW=(a.wW||0)+(((still&&ap_==='water')?1:0)-(a.wW||0))*kk;
+ a.wT=(a.wT||0)+(((still&&ap_==='think')?1:0)-(a.wT||0))*kk;
+ a.wS=(a.wS||0)+(((still&&ap_==='stretch')||mk==='stretch'?1:0)-(a.wS||0))*kk;
+ a.wP=(a.wP||0)+((mk==='phone'&&!a.carry?1:0)-(a.wP||0))*kk;
+ a.wSip=(a.wSip||0)+((mk==='sip'&&a.carry==='cup'?1:0)-(a.wSip||0))*kk;
+ a.wL=(a.wL||0)+(((mk==='look'||(still&&ap_==='look'))?1:0)-(a.wL||0))*Math.min(1,dt*3);
+ a.wSh=(a.wSh||0)+((mk==='shift'?1:0)-(a.wSh||0))*Math.min(1,dt*3);
+ a.wPap=(a.wPap||0)+((a.carry==='paper'?1:0)-(a.wPap||0))*kk;
+ a.wCan=(a.wCan||0)+((a.carry==='can'?1:0)-(a.wCan||0))*kk;
+ P.can.visible=a.carry==='can';P.paper.visible=a.carry==='paper';P.phone.visible=a.wP>0.35&&!a.carry;
  P.armL.rotation.x=-sw*0.6+a.type*(-0.82+tp*0.07)+restSit*(1)+a.pray*-0.75;
  P.armR.rotation.x=sw*0.6+a.type*(-0.82+tp2*0.07)+restSit*(1-a.cupA)+a.pray*-0.75+a.cupA*(1-a.type)*-1.2;
  P.armL.rotation.z=-0.13*(1-a.type)*(1-a.pray)+a.pray*0.5;P.armR.rotation.z=0.13*(1-a.type)*(1-a.pray)-a.pray*0.5;
+ var osc=Math.sin(t*6+a.seed),ovL=Math.min(1,a.wR+a.wS+a.wP),ovR=Math.min(1,a.wR+a.wW+a.wT+a.wS+a.wP+a.wSip+a.wPap*(1-a.walk*0.5));
+ if(ovL>0.001){P.armL.rotation.x=P.armL.rotation.x*(1-ovL)+a.wR*(-1.15+osc*0.12)+a.wS*-2.8+a.wP*-1.1;P.armL.rotation.z+=-a.wS*0.3+a.wP*0.4}
+ if(ovR>0.001){P.armR.rotation.x=P.armR.rotation.x*(1-ovR)+a.wR*(-1.15-osc*0.12)+a.wW*-0.9+a.wT*-2.05+a.wS*-2.8+a.wP*-1.1+a.wSip*-1.95+a.wPap*(1-a.walk*0.5)*-0.85;P.armR.rotation.z+=a.wS*0.3-a.wP*0.4-a.wT*0.55-a.wSip*0.25}
+ P.can.rotation.x=a.wW*(0.75+0.25*Math.sin(t*3+a.seed));
+ P.body.rotation.z=a.wSh*Math.sin(t*1.4+a.seed)*0.07;P.body.rotation.x=a.wT*0.06;
  P.body.position.y=Math.abs(Math.sin(a.phase))*0.045*a.walk+a.sit*0.088;
  var br=Math.sin(t*2.2+a.seed);P.torso.scale.y=0.85*(1+0.018*br*(1-a.walk));
  P.head.position.y=1.2+0.006*br*(1-a.walk);
  var look=0;if(a.faceUntil>t&&a.faceTo&&!moving){look=angDiff(a.yaw,Math.atan2(a.faceTo.x-a.pos.x,a.faceTo.z-a.pos.z));look=Math.max(-0.75,Math.min(0.75,look))}
  a.look=(a.look||0)+(look-(a.look||0))*Math.min(1,dt*5);
  P.head.rotation.y=Math.sin(t*0.45+a.seed)*0.14*(1-a.walk)*(1-a.type*0.75)*(1-a.pray)+a.look;
- P.head.rotation.x=a.type*0.1+a.pray*0.2;
+ P.head.rotation.x=a.type*0.1+a.pray*0.2+a.wP*0.38+a.wPap*a.sit*0.25-a.wSip*0.25-a.wT*0.14+a.wW*0.25+a.wR*0.12-a.wS*0.2;
+ P.head.rotation.y+=a.wL*(a.microDir||1)*0.75*(1-a.walk);
  P.head.rotation.z=Math.sin(a.phase)*0.04*a.walk;
  var w=row.status==='Bekerja'||row.status==='Revisi';P.dot.visible=w;if(w){var pu=Math.sin(t*3+a.seed);P.dotS.scale.setScalar(1+0.12*pu);P.glow.scale.setScalar(0.55+0.15*pu)}
  a.hv=(a.hv||0)+((a.hover?1:0)-(a.hv||0))*Math.min(1,dt*12);P.root.scale.setScalar(a.sc*(1+0.07*a.hv))}
@@ -1495,6 +1614,7 @@ function frame(){requestAnimationFrame(frame);var dt=Math.min(0.05,clock.getDelt
  var tg=controls.target,cx=Math.max(X0-6,Math.min(X1+6,tg.x)),cz=Math.max(Z0-4,Math.min(Z1+4,tg.z)),dx=cx-tg.x,dz=cz-tg.z,dy=-tg.y;if(dx||dz||dy){tg.x+=dx;tg.y+=dy;tg.z+=dz;camera.position.x+=dx;camera.position.y+=dy;camera.position.z+=dz}
  if(camera.position.y<1)camera.position.y=1;
  for(var wid in AG){var wa=AG[wid];if(!(wa.sayUntil>TT&&!wa.path.length))wander(wa)}
+ lifeTick();
  ambientTick(false);
  for(var id in AG)animAgent(AG[id],dt,TT);
  updateScreens(dt);
@@ -1503,7 +1623,10 @@ function frame(){requestAnimationFrame(frame);var dt=Math.min(0.05,clock.getDelt
  renderer.render(scene,camera);updateOverlays()}
 frame();
 var ld=document.getElementById('loading');if(ld){ld.style.opacity=0;setTimeout(function(){ld.remove()},600)}
-window.__AIO3D={MKT:MKT,TRADE:TRADE,ambientNow:function(){return ambientTick(true)},say:say,camera:camera,controls:controls,AG:AG,focusRoom:focusRoom,viewAll:viewAll,setView:function(az,pol){AZ=az;POL=pol;viewAll(true)},go:go,fit:fit,renderer:renderer,OB:OB,G:G,blocked:blocked,R3:R3,SPOTS:SPOTS,HOME:HOME,LOUNGE:LOUNGE,HOMEROOM:HOMEROOM,wander:wander,goTo:goTo,syncState:syncState,apOf:apOf,astar:astar,los:los,WALLS:WALLS};
+window.__AIO3D={MKT:MKT,TRADE:TRADE,ambientNow:function(){return ambientTick(true)},say:say,camera:camera,controls:controls,AG:AG,focusRoom:focusRoom,viewAll:viewAll,setView:function(az,pol){AZ=az;POL=pol;viewAll(true)},go:go,fit:fit,renderer:renderer,OB:OB,G:G,blocked:blocked,R3:R3,SPOTS:SPOTS,HOME:HOME,LOUNGE:LOUNGE,HOMEROOM:HOMEROOM,wander:wander,goTo:goTo,syncState:syncState,apOf:apOf,astar:astar,los:los,WALLS:WALLS,LIFE_LOG:LIFE_LOG,startAct:startAct,endAct:endAct,lifeTick:lifeTick,COFFEE_SPOTS:COFFEE_SPOTS,PAPER_SPOTS:PAPER_SPOTS,GARDEN_WALK:GARDEN_WALK,WATER_SPOTS:WATER_SPOTS,roomAt:roomAt,
+ now:function(){return TT},setLife:function(on){LIFE_ON=!!on;if(!on)for(var k in AG){endAct(AG[k],true);AG[k].micro=null}},
+ /* tes: maju-cepat waktu simulasi (tanpa render) */
+ sim:function(sec,dt){dt=dt||0.05;var n=Math.round(sec/dt);for(var i=0;i<n;i++){TT+=dt;for(var w in AG){var x=AG[w];if(!(x.sayUntil>TT&&!x.path.length))wander(x)}lifeTick();for(var id2 in AG)animAgent(AG[id2],dt,TT)}}};
 }
 })();
 </script>
