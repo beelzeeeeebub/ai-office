@@ -242,10 +242,17 @@ function roomName(r){return ROOMNAMES[r]||r||"—"}
 var SEEN={};try{SEEN=JSON.parse(localStorage.getItem('aio_seen')||'{}')||{}}catch(e){SEEN={}}
 function markSeen(t,always){SEEN[t.task_id]=always?'*':(t.diperbarui||'1');try{localStorage.setItem('aio_seen',JSON.stringify(SEEN))}catch(e){}}
 function hasResult(t){return !!(t.isi_preview||t.data_chart||t.link_file||t.gambar)}
-/** Tugas hasil siap untuk agent: Menunggu approve (selalu) atau Selesai (sampai dibuka). */
+/** Tugas hasil siap untuk agent: Menunggu approve (selalu) atau Selesai yang BELUM di-approve Kris & masih baru (sampai dibuka).
+ *  v15: tugas yang sudah di-approve (jon_todo APPROVE / tahap "Di-approve ...") tidak pernah dianggap "menunggu" lagi,
+ *  walau localStorage kosong (browser/perangkat lain, incognito, cache dihapus) atau baris diperbarui lagi oleh Jon/Arsip. */
+function isApproved(t){var tp=String(t.tahap||'');return String(t.jon_todo||'').trim().toUpperCase()==='APPROVE'||(/di[- ]?approve|approved|sudah[- ]?(di[- ]?)?approve/i.test(tp)&&!/menunggu|belum/i.test(tp))}
+var DONE_MAX_H=24; /* hasil Selesai (tanpa approve) yang lebih lama dari ini tidak lagi memanggil agent ke Review */
+function ageH(t){var d=String(t.diperbarui||''),m=d.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);if(!m)return 0;
+ var ts=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4]-7,+m[5]),now=Date.now();if(state&&state.serverTime){var n=String(state.serverTime).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);if(n)now=Date.UTC(+n[1],+n[2]-1,+n[3],+n[4]-7,+n[5])}
+ return (now-ts)/3600e3}
 function doneTaskFor(id){
  if(!state)return null;
- var c=state.tasks.filter(function(t){return t.agent===id&&hasResult(t)&&(t.status==="Menunggu approve"||(t.status==="Selesai"&&SEEN[t.task_id]!=='*'&&SEEN[t.task_id]!==(t.diperbarui||'1')))});
+ var c=state.tasks.filter(function(t){return t.agent===id&&hasResult(t)&&(t.status==="Menunggu approve"||(t.status==="Selesai"&&!isApproved(t)&&ageH(t)<DONE_MAX_H&&SEEN[t.task_id]!=='*'&&SEEN[t.task_id]!==(t.diperbarui||'1')))});
  c.sort(function(a,b){return String(b.diperbarui).localeCompare(String(a.diperbarui))});
  return c[0]||null;
 }
@@ -633,14 +640,14 @@ function ob(x0,z0,x1,z1,inf,code){OB.push({x0:x0+OX-inf,z0:z0-inf,x1:x1+OX+inf,z
 function obc(x,z,r,inf,code){OB.push({cx:x+OX,cz:z,r:r+inf,code:code||2})}
 
 /* ---------- layout (meter) ---------- */
-var X0=-26,X1=34,Z0=-14,Z1=14,CZ=2.2,LW=8; /* v14: gedung diperlebar 8 m ke timur untuk LOBBY di antara Review & Meeting */
+var X0=-26,X1=34,Z0=-14,Z1=14,CZ=2.2,LW=8,XN=26; /* v15: sisi utara (Investment) kembali berakhir di x=26 seperti dulu; x 26..X1 utara = halaman rumput */ /* v14: gedung diperlebar 8 m ke timur untuk LOBBY di antara Review & Meeting */
 var OX=0; /* geser-x sementara untuk blok Meeting/Cafe/Taman (lihat B/C/S/grp/ob/obc/instBoxes) */
 var DEFW='#e8edf5';
 var R3={
  ENGINEER:{x0:-26,x1:-11,z0:Z0,z1:-CZ,door:-18.5,floor:'#dfe8f2',line:'#cfdbe8',dot:'#3f7be0'},
  ADMIN:{x0:-11,x1:0,z0:Z0,z1:-CZ,door:-5.3,floor:'#efe5d2',line:'#e2d6bf',dot:'#3f7be0'},
  BOSS:{x0:0,x1:10,z0:Z0,z1:-CZ,door:5,floor:'#e6e0f1',line:'#d7cfe6',dot:'#9a94b0'},
- INVESTMENT:{x0:10,x1:X1,z0:Z0,z1:-CZ,door:16.15,floor:'#dcefe2',line:'#cbe3d3',dot:'#2e9e5b'},
+ INVESTMENT:{x0:10,x1:XN,z0:Z0,z1:-CZ,door:16.15,floor:'#dcefe2',line:'#cbe3d3',dot:'#2e9e5b'},
  LIBRARY:{x0:-26,x1:-15,z0:CZ,z1:Z1,door:-24,floor:'#ecdcc2',line:'#dfcdb0',dot:'#3f7be0'},
  PRINT:{x0:-15,x1:-9,z0:CZ,z1:Z1,door:-12,floor:'#e7e7ea',line:'#d8d8dc',dot:'#3f7be0'},
  REVIEW:{x0:-9,x1:-1,z0:CZ,z1:Z1,door:-5,floor:'#f5e8cf',line:'#eadabb',dot:'#3f7be0'},
@@ -654,7 +661,7 @@ ROOM_IDS.forEach(function(k){var r=R3[k];r.id=k;r.cx=(r.x0+r.x1)/2;r.cz=(r.z0+r.
 
 /* ---------- base + floors ---------- */
 B((X0+X1)/2,(Z0-2.6+Z1+15.6)/2,X1-X0+6.4,Z1-Z0+18.2,-0.75,0.7,'#4a4658',{r:0.12,cast:false}); /* tapak (gedung + halaman depan) */
-B((X0+X1)/2,0,X1-X0+0.9,Z1-Z0+0.9,-0.05,0.04,'#5b566c',{cast:false});
+B((X0+XN)/2,(Z0-CZ)/2-0.225,XN-X0+0.9,-CZ-Z0+0.45,-0.05,0.04,'#5b566c',{cast:false});B((X0+X1)/2,(Z1-CZ)/2+0.225,X1-X0+0.9,Z1+CZ+0.45,-0.05,0.04,'#5b566c',{cast:false});
 function floorTex(base,line,grass){return canvasTex(512,512,function(cx,w,h){
  cx.fillStyle=base;cx.fillRect(0,0,w,h);var n=4,s=w/n;
  if(grass){for(var k=0;k<2600;k++){cx.fillStyle=rnd(k)>0.5?'rgba(255,255,255,.10)':'rgba(30,90,30,.13)';cx.fillRect(rnd(k*3.1)*w,rnd(k*5.7)*h,2,5)}return}
@@ -705,10 +712,10 @@ function wall(ax,az,bx,bz,o){
   var inf=o.hedge?0.45:0.3,t2=o.glass?0.04:TH/2;if(horiz)ob(s[0],c-t2,s[1],c+t2,inf,1);else ob(c-t2,s[0],c+t2,s[1],inf,1)});
  return res}
 /* luar: utara tinggi penuh, sisi lain setengah tinggi (supaya isi ruangan tetap kelihatan) */
-wall(X0-0.15,Z0,X1+0.15,Z0,{h:FULL,th:0.3,color:'#e6ebf3'});
+wall(X0-0.15,Z0,XN+0.15,Z0,{h:FULL,th:0.3,color:'#e6ebf3'});
 wall(X0,Z0+0.15,X0,-CZ,{});wall(X0,CZ,X0,Z1+0.125,{});
 wall(X0,-CZ+0.04,X0,CZ-0.04,{glass:1});wall(X1,-CZ+0.04,X1,CZ-0.04,{glass:1});
-wall(X1,Z0+0.15,X1,-CZ,{color:'#e3efe6'});
+wall(XN,Z0+0.15,XN,-CZ-0.125,{color:'#e3efe6'});
 wall(X0+0.125,Z1,R3.ROOFTOP.x0,Z1,{doors:[R3.LOBBY.door],dw:2.4}); /* pintu masuk utama di lobby */
 wall(R3.ROOFTOP.x0,Z1,X1+0.27,Z1,{hedge:1});wall(X1,CZ,X1,Z1-0.27,{hedge:1});
 /* koridor kaca */
@@ -719,7 +726,7 @@ wall(X0+0.125,-CZ,X1-0.125,-CZ,{glass:1,doors:ROOM_IDS.filter(function(k){return
 /* sekat antar ruangan: kaca */
 [-11,0,10].forEach(function(x){wall(x,Z0+0.15,x,-CZ-0.04,{glass:1})});
 [-15,-9,R3.LOBBY.x0,R3.LOBBY.x1,R3.MEETING.x1].forEach(function(x){wall(x,CZ+0.04,x,Z1-0.125,{glass:1})});
-wall(R3.ROOFTOP.x0,CZ+0.04,R3.ROOFTOP.x0,Z1-0.125,{glass:1,doors:[R3.CAFE.x1-3.8]});
+wall(R3.ROOFTOP.x0,CZ+0.04,R3.ROOFTOP.x0,Z1-0.125,{glass:1,doors:[11.2]}); /* v15: pintu Cafe->Taman di z=11.2 (dulu CAFE.x1-3.8 ikut tergeser jadi 19.2 -> kusen kaca melayang di atas mobil) */
 
 /* ---------- textures ---------- */
 function screenTex(kind,seed){return canvasTex(256,160,function(cx,w,h){
@@ -1007,21 +1014,12 @@ roundTable(22.6,-7.0,0.95,0.74,'#a8754e');rug(20.2,-9.4,25.0,-4.6,'#bfe0c9');
 chair(21.4,-7.0,Math.PI/2,'#2f5d46');chair(23.8,-7.0,-Math.PI/2,'#2f5d46');chair(22.6,-8.2,0,'#2f5d46');chair(22.6,-5.8,Math.PI,'#2f5d46');
 cabinet(10.05,-11.6,2.0,Math.PI/2,27);
 armchair(11.0,-7.55,Math.PI/2,'#3a8f4f');armchair(11.0,-5.45,Math.PI/2,'#3a8f4f');sideTable(11.0,-6.5,null,'books');rug(10.3,-8.4,12.0,-4.6,'#e3efe6');
-lowCab(26-0.14,-11.4,3.0,-Math.PI/2,{items:['plant','books','vase','lamp']});
+lowCab(XN-0.14,-11.4,3.0,-Math.PI/2,{items:['plant','books','vase','lamp']});
 (function(){var x=25.3,z=-4.0;C(x,z,0.2,0.24,0,0.05,'#5a3a26');C(x,z,0.03,0.03,0.05,0.8,'#5a3a26',{seg:8});S(x,1.12,z,0.28,'#4a9fd8',{seg:24});var r=new T.Mesh(geo('gring',function(){return new T.TorusGeometry(0.31,0.012,6,32)}),mat('#c9a227',{m:0.6,r:0.3}));r.position.set(x,1.12,z);r.rotation.y=0.6;add(r);obc(x,z,0.3,0.15,2)})();
 tallPlant(10.6,-3.0,1);plant(25.3,-13.4,1);bush(18.0,-3.0,0.7);
 sofaSeats('INVESTMENT',13.5,-3.1,2.0,Math.PI,'#3a8f4f');rug(12.0,-4.5,15.0,-2.5,'#e3efe6');sofaSeats('INVESTMENT',20.8,-3.1,2.0,Math.PI,'#2f5d46');rug(19.3,-4.5,22.3,-2.5,'#e3efe6');
 
-/* ===== perluasan Investment (x 26..X1): lounge trading, dipisah sekat kaca berpintu ===== */
-wall(26,Z0+0.15,26,-CZ-0.04,{glass:1,doors:[-7.2]});
-windowN(30,2.4);cabinet(27.5,NW,1.8,0,41);cabinet(32.5,NW,1.8,0,43);
-rug(28.4,-10.0,33.9,-5.2,'#cfe6d6');
-sofaSeats('INVESTMENT',33.42,-7.6,2.4,-Math.PI/2,'#2f5d46');
-B(31.2,-7.6,0.6,1.1,0,0.36,'#5a3a26',{r:0.04,ob:1,inf:0.2});B(31.2,-7.6,0.66,1.16,0.36,0.04,'#efebe4',{r:0.015});potPlant(31.2,0.4,-7.9,0.5);C(31.25,-7.25,0.05,0.045,0.4,0.1,'#ffffff',{seg:12});
-armSeat('INVESTMENT',29.5,-8.5,Math.PI/2,'#3a8f4f');armSeat('INVESTMENT',29.5,-6.7,Math.PI/2,'#3a8f4f');
-lowCab(26.16,-11.6,2.4,Math.PI/2,{items:['plant','books','vase']});
-floorLamp(33.4,-9.5);tallPlant(33.3,-13.3,1);tallPlant(33.3,-3.0,0.95);plant(26.7,-3.0,0.8);
-wallClock(30,2.85,NW+0.02,0.2);
+/* v15: perluasan/lounge Investment x 26..34 dihapus (kembali satu ruangan) */
 
 /* ===== LIBRARY ===== */
 shelf(WW,8.1,10.9,Math.PI/2,1);
@@ -1242,15 +1240,17 @@ var FRONT={z0:Z1,walk0:Z1+1.05,walk1:Z1+2.85,bay0:Z1+3.0,bay1:Z1+8.0,road1:Z1+13
  /* deretan pohon & semak di tepi depan tapak */
  for(var tx=sx0+2.0;tx<sx1-5;tx+=4.2){if(((tx-(sx0+3))%9+9)%9<1.2||((tx-(sx0+3))%9+9)%9>7.8)continue;tree(tx,FRONT.road1+1.0,0.7)}
  /* pagar semak rapi (instanced) di sepanjang dinding luar gedung + depan tapak */
- var H=[];function run(ax,az,bx,bz){var horiz=Math.abs(bz-az)<1e-6,len=Math.hypot(bx-ax,bz-az),n=Math.max(1,Math.round(len/1.9)),sl=len/n;
-  for(var i=0;i<n;i++){var t=(i+0.5)/n;H.push({x:ax+(bx-ax)*t,z:az+(bz-az)*t,l:sl-0.06,ry:horiz?0:Math.PI/2})}
+ var H=[],RUNK=0;function run(ax,az,bx,bz){var hy=1+0.014*(RUNK++%5); /* v15: tinggi beda tipis per deret -> sudut pertemuan dua deret tidak z-fighting */var horiz=Math.abs(bz-az)<1e-6,len=Math.hypot(bx-ax,bz-az),n=Math.max(1,Math.round(len/1.9)),sl=len/n;
+  for(var i=0;i<n;i++){var t=(i+0.5)/n;H.push({x:ax+(bx-ax)*t,z:az+(bz-az)*t,l:sl-0.06,ry:horiz?0:Math.PI/2,hy:hy})}
   var cxm=(ax+bx)/2,czm=(az+bz)/2;B(cxm,czm,horiz?len+0.1:0.82,horiz?0.82:len+0.1,-0.045,0.06,'#6b4a35',{cast:false,mo:{r:1}})}
  var dz=Z1+0.55,dg=R3.LOBBY.x0-0.1,dg2=R3.LOBBY.x1+0.1;
  run(X0-0.1,dz,dg,dz);run(dg2,dz,R3.ROOFTOP.x0,dz);
- run(X0-0.6,Z0-0.3,X0-0.6,Z1+0.6);run(X1+0.6,Z0-0.3,X1+0.6,CZ);
- run(X0-0.6,Z0-0.6,X1+0.6,Z0-0.6);
+ run(X0-0.6,Z0-0.3,X0-0.6,Z1+0.6);run(XN+0.6,Z0-0.3,XN+0.6,-CZ-0.6);run(XN+0.6,-CZ-0.6,X1+0.6,-CZ-0.6);run(X1+0.6,-CZ-0.6,X1+0.6,CZ);
+ run(X0-0.6,Z0-0.6,XN+0.6,Z0-0.6);
  run(sx0+0.8,FRONT.end-0.4,sx1-4.6,FRONT.end-0.4);
  buildHedges(H);
+ /* v15: halaman rumput timur laut (bekas perluasan Investment) */
+ tree(30.2,-8.6,0.9);tree(32.6,-12.0,0.75);bush(28.2,-5.2,0.7);bush(33.2,-4.6,0.6);
  /* bola topiari di kiri-kanan pintu masuk */
  [EX-3.45,EX+3.45].forEach(function(x){C(x,Z1+0.6,0.32,0.26,0,0.42,'#e8e2d6',{seg:16});S(x,0.78,Z1+0.6,0.34,'#3f8f4a',{seg:16})});
  /* pintu masuk: kusen + panel kaca geser (terbuka) + kanopi kaca */
@@ -1265,7 +1265,7 @@ var FRONT={z0:Z1,walk0:Z1+1.05,walk1:Z1+2.85,bay0:Z1+3.0,bay1:Z1+8.0,road1:Z1+13
 /** semak pagar rapi: satu InstancedMesh (warna sedikit bervariasi) */
 function buildHedges(list){var g=T.RoundedBoxGeometry?new T.RoundedBoxGeometry(1,0.78,0.62,2,0.16):new T.BoxGeometry(1,0.78,0.62);
  var im=new T.InstancedMesh(g,mat('#ffffff',{r:0.92}),list.length),m4=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),sc=new T.Vector3(),ps=new T.Vector3(),CC=['#3f8f4a','#3a8745','#44964f'];
- list.forEach(function(h,i){e.set(0,h.ry,0);q.setFromEuler(e);sc.set(h.l,1,1);ps.set(h.x,0.37,h.z);m4.compose(ps,q,sc);im.setMatrixAt(i,m4);im.setColorAt(i,col(CC[i%3]))});
+ list.forEach(function(h,i){e.set(0,h.ry,0);q.setFromEuler(e);sc.set(h.l,h.hy||1,1);ps.set(h.x,0.37*(h.hy||1),h.z);m4.compose(ps,q,sc);im.setMatrixAt(i,m4);im.setColorAt(i,col(CC[i%3]))});
  im.castShadow=true;im.receiveShadow=true;world.add(im);return im}
 /** mobil low-poly instanced: bodi, kabin kaca, atap, roda, lampu depan & belakang (6 draw call untuk semua mobil) */
 function buildCars(cars){if(!cars.length)return;var n=cars.length,m4=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),sc=new T.Vector3(),ps=new T.Vector3(),lp=new T.Vector3();
@@ -1290,7 +1290,7 @@ function buildCars(cars){if(!cars.length)return;var n=cars.length,m4=new T.Matri
 /* ---------- nav grid + A* ---------- */
 var G={res:0.2,x0:X0-0.5,z0:Z0-0.5};G.w=Math.ceil((X1-X0+1)/G.res);G.h=Math.ceil((Z1-Z0+1)/G.res);G.b=new Uint8Array(G.w*G.h);
 (function(){for(var j=0;j<G.h;j++)for(var i=0;i<G.w;i++){var x=G.x0+(i+0.5)*G.res,z=G.z0+(j+0.5)*G.res,v=0;
- if(x<X0+0.3||x>X1-0.3||z<Z0+0.3||z>Z1-0.3)v=1;
+ if(x<X0+0.3||x>X1-0.3||z<Z0+0.3||z>Z1-0.3)v=1;if(x>XN-0.3&&z<-CZ-0.1)v=1; /* v15: halaman timur laut (luar gedung) */
  for(var k=0;k<OB.length&&!v;k++){var o=OB[k];
   if(o.rx!=null){var ex=(x-o.cx)/o.rx,ez=(z-o.cz)/o.rz;if(ex*ex+ez*ez<1)v=o.code}
   else if(o.r!=null){if(Math.hypot(x-o.cx,z-o.cz)<o.r)v=o.code}
