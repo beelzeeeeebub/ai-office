@@ -1,5 +1,8 @@
 /**
- * AI Office · Arsco × Investment — Google Apps Script (MODE ASLI) v12 (+ API JSON untuk GitHub Pages)
+ * AI Office · Arsco × Investment — Google Apps Script (MODE ASLI) v13 (+ API JSON untuk GitHub Pages)
+ * v13: kolom "Perintah" di web: POST action 'chat' (teks + file + link) -> file ke Drive "AI Office Uploads",
+ *      baris Obrolan Kris -> bot, lalu bangunkan bot lewat webhook (event 'chat'). GET ?api=chat = riwayat chat Kris.
+ *      Approve juga mengabari Arsip (event 'archive') supaya file final masuk Grok Bot Library.
  * v12: Approve/Revisi dari web LANGSUNG membangunkan bot pemilik tugas lewat webhook routine-nya
  *      (Script Property WEBHOOK_<ID>_URL + WEBHOOK_<ID>_KEY), dicoba ulang 1x kalau gagal, cadangan lewat Jon,
  *      hasilnya dicatat di Activity + kolom tahap, dan dikirim balik ke web (field "wake").
@@ -26,7 +29,8 @@ function doGet(e) {
   if (p.api) {
     try {
       if (p.api === 'state') return jsonOut_(getState(), p.callback);
-      if (p.api === 'ping') return jsonOut_(JSON.stringify({ ok: true, version: 'v12', serverTime: now_(), wake: wakeMap_() }), p.callback);
+      if (p.api === 'chat') return jsonOut_(JSON.stringify(chatHistory_(p.bot, p.limit)), p.callback);
+      if (p.api === 'ping') return jsonOut_(JSON.stringify({ ok: true, version: 'v13', serverTime: now_(), wake: wakeMap_(), features: ['chat', 'archive'] }), p.callback);
       return jsonOut_(JSON.stringify({ ok: false, error: 'api tidak dikenal: ' + p.api }), p.callback);
     } catch (err) {
       return jsonOut_(JSON.stringify({ ok: false, error: String(err && err.message || err) }), p.callback);
@@ -42,6 +46,8 @@ function doGet(e) {
  *   {"action":"approve","task_id":"T-0003"}
  *   {"action":"revise","task_id":"T-0003","note":"catatan revisi"}
  *   {"action":"obrolan","dari":"Cio","ke":"Anna","task_id":"T-0002","ringkas":"…","isi":"…"}
+ *   v13: {"action":"chat","to":"Jon","text":"…","task_id":"T-0007","files":[{"name","mime","dataBase64"}],"links":["https://…"]}
+ *        -> {"ok":true,"chat_id":"C-…","wake":{…},"files":[{name,url}]}
  * Semua action WAJIB menyertakan "key" = Script Property WEB_KEY (Project Settings > Script Properties).
  * Kalau WEB_KEY belum di-set, approve/revise ditolak. GET ?api=state tetap terbuka (baca saja).
  * Jalur lama google.script.run (halaman HtmlService, approveTask/reviseTask) tidak memakai key.
@@ -56,10 +62,12 @@ function doPost(e) {
     checkWebKey_(act, b.key);
     if (act === 'approve') {
       var ra = approveTask_(b.task_id || b.taskId);
-      out = { ok: true, msg: ra.msg, wake: ra.wake || null };
+      out = { ok: true, msg: ra.msg, wake: ra.wake || null, archive: ra.archive || null };
     } else if (act === 'revise' || act === 'revisi') {
       var rr = reviseTask_(b.task_id || b.taskId, b.note || b.catatan);
       out = { ok: true, msg: rr.msg, wake: rr.wake || null };
+    } else if (act === 'chat') {
+      out = chatSend_(b);
     } else if (act === 'obrolan') {
       if (!b.dari) throw new Error('dari wajib diisi');
       logObrolan(b.dari, b.ke, b.task_id || b.taskId, b.ringkas, b.isi);
@@ -180,32 +188,28 @@ function postWebhook_(url, key, payload) {
   return res.getResponseCode();
 }
 
-function notifyAgent_(event, t, catatan, extra) {
-  var label = event === 'approve' ? 'Approve' : 'Revisi';
-  var info = { status: 'none', agent: (t && t.agent) || '', via: '', code: 0 };
+/**
+ * Kirim payload ke webhook bot `agentId` (cadangan: WEBHOOK_FALLBACK, default Jon, dengan for_agent).
+ * logLabel: teks pendek untuk baris Activity. Kembalian {status:'ok'|'fail'|'none', agent, via, code}.
+ */
+function sendWebhook_(agentId, payload, logLabel) {
+  var info = { status: 'none', agent: agentId || '', via: '', code: 0 };
   try {
-    if (!t || !t.agent) return info;
+    if (!agentId) return info;
     var props = PropertiesService.getScriptProperties();
     var fbName = String(props.getProperty('WEBHOOK_FALLBACK') || 'Jon').trim();
-    var own = propKey_(t.agent), fb = propKey_(fbName);
+    var own = propKey_(agentId), fb = propKey_(fbName);
     var target = own, url = props.getProperty('WEBHOOK_' + own + '_URL');
     if (!url && fb && fb !== own) { target = fb; url = props.getProperty('WEBHOOK_' + fb + '_URL'); }
-    var viaName = target === own ? t.agent : fbName;
+    var viaName = target === own ? agentId : fbName;
     if (!url) {
-      addLog('Sistem', label + ' ' + t.task_id + ': ' + t.agent + ' belum tersambung webhook (WEBHOOK_' + own + '_URL kosong) — tercatat di Sheet, bot baru kerja saat dibuka/di-chat');
+      addLog('Sistem', logLabel + ': ' + agentId + ' belum tersambung webhook (WEBHOOK_' + own + '_URL kosong) — tercatat di Sheet, bot baru kerja saat dibuka/di-chat');
       return info;
     }
     var key = props.getProperty('WEBHOOK_' + target + '_KEY');
-    var payload = {
-      event: event,                                   // 'revisi' | 'approve' (dipakai routine lama)
-      action: event === 'approve' ? 'approve' : 'revise',
-      task_id: t.task_id, agent: t.agent, agent_id: t.agent, for_agent: t.agent,
-      via: viaName,
-      judul: t.judul || '', status: event === 'approve' ? 'Selesai' : 'Revisi',
-      catatan: catatan || '', catatan_revisi: (extra && extra.catatan_revisi) || t.catatan_revisi || '',
-      link_file: t.link_file || '', tipe_hasil: t.tipe_hasil || '',
-      sheet_id: SHEET_ID, waktu: now_(), resend: !!(extra && extra.resend)
-    };
+    payload.for_agent = agentId; payload.via = viaName;
+    if (!payload.sheet_id) payload.sheet_id = SHEET_ID;
+    if (!payload.waktu) payload.waktu = now_();
     var code = 0, err = '';
     for (var attempt = 0; attempt < 2; attempt++) {
       try { code = postWebhook_(url, key, payload); err = ''; } catch (e) { code = 0; err = String(e && e.message || e).slice(0, 80); }
@@ -214,14 +218,49 @@ function notifyAgent_(event, t, catatan, extra) {
       Utilities.sleep(1500);
     }
     var ok = code >= 200 && code < 300;
-    info = { status: ok ? 'ok' : 'fail', agent: t.agent, via: viaName, code: code };
-    addLog('Sistem', 'Webhook ' + event + (payload.resend ? ' (ulang)' : '') + ' ' + t.task_id + ' → ' + info.via +
-      (info.via !== t.agent ? ' (untuk ' + t.agent + ')' : '') + ': ' + (ok ? 'OK ' + code : 'gagal ' + (code || err)));
+    info = { status: ok ? 'ok' : 'fail', agent: agentId, via: viaName, code: code };
+    addLog('Sistem', 'Webhook ' + logLabel + ' → ' + viaName + (viaName !== agentId ? ' (untuk ' + agentId + ')' : '') + ': ' + (ok ? 'OK ' + code : 'gagal ' + (code || err)));
   } catch (e) {
     info.status = 'fail';
-    try { addLog('Sistem', 'Webhook ' + event + ' ' + (t && t.task_id) + ' → ' + (t && t.agent) + ': error ' + String(e && e.message || e).slice(0, 80)); } catch (e2) {}
+    try { addLog('Sistem', 'Webhook ' + logLabel + ' → ' + agentId + ': error ' + String(e && e.message || e).slice(0, 80)); } catch (e2) {}
   }
   return info;
+}
+
+function notifyAgent_(event, t, catatan, extra) {
+  if (!t || !t.agent) return { status: 'none', agent: '', via: '', code: 0 };
+  var resend = !!(extra && extra.resend);
+  var payload = {
+    event: event,                                   // 'revisi' | 'approve' (dipakai routine lama)
+    action: event === 'approve' ? 'approve' : 'revise',
+    task_id: t.task_id, agent: t.agent, agent_id: t.agent,
+    judul: t.judul || '', status: event === 'approve' ? 'Selesai' : 'Revisi',
+    catatan: catatan || '', catatan_revisi: (extra && extra.catatan_revisi) || t.catatan_revisi || '',
+    link_file: t.link_file || '', tipe_hasil: t.tipe_hasil || '',
+    resend: resend
+  };
+  return sendWebhook_(t.agent, payload, (event === 'approve' ? 'approve ' : 'revisi ') + (resend ? '(ulang) ' : '') + t.task_id);
+}
+
+/** v13: tugas divisi Investment (Anna, Cio, ruang INVESTMENT) TIDAK masuk arsip Library Arsco.
+ *  Script Property ARCHIVE_EXCLUDE (opsional) = daftar id dipisah koma, default "Anna,Cio". */
+function archiveAllowed_(t) {
+  var ex = String(PropertiesService.getScriptProperties().getProperty('ARCHIVE_EXCLUDE') || 'Anna,Cio').split(',').map(function (x) { return x.trim(); }).filter(String);
+  if (ex.indexOf(String(t.agent || '')) >= 0) return false;
+  try {
+    var a = agentRow_(SpreadsheetApp.openById(SHEET_ID), t.agent);
+    if (a && (String(a.divisi || '') === 'Investment' || String(a.ruangan_kerja || '').toUpperCase() === 'INVESTMENT')) return false;
+  } catch (e) {}
+  return true;
+}
+
+/** v13: setelah approve, kabari Arsip supaya file final disimpan ke Grok Bot Library. */
+function notifyArchive_(t) {
+  if (!t || !t.task_id) return null;
+  var arsip = String(PropertiesService.getScriptProperties().getProperty('ARCHIVE_AGENT') || 'Arsip').trim();
+  if (!arsip || arsip === 'off') return null;
+  return sendWebhook_(arsip, { event: 'archive', action: 'archive', task_id: t.task_id, agent: t.agent || '',
+    judul: t.judul || '', link_file: t.link_file || '', gambar: t.gambar || '', tipe_hasil: t.tipe_hasil || '' }, 'archive ' + t.task_id);
 }
 
 /** Tulis hasil "bangunkan bot" ke kolom tahap supaya terlihat di web. */
@@ -378,7 +417,9 @@ function approveTask_(taskId) {
   if (typeof r === 'string') return { msg: r, wake: null };
   var info = notifyAgent_('approve', r.t, '');
   if (info.status === 'ok') { try { setRow_('Tasks', r.t.task_id, { tahap: wakeTahap_('approve', info) }); } catch (e) {} }
-  return { msg: r.msg + wakeMsg_('approve', info), wake: info };
+  var arc = null;
+  if (r.t.agent !== 'Arsip' && (r.t.link_file || r.t.gambar) && archiveAllowed_(r.t)) arc = notifyArchive_(r.t);
+  return { msg: r.msg + wakeMsg_('approve', info) + (arc && arc.status === 'ok' ? ' · Arsip dikabari untuk Library' : ''), wake: info, archive: arc };
 }
 
 /** Dipanggil tombol "↻ Kirim revisi". note = catatan revisi dari Kris. */
@@ -410,6 +451,116 @@ function wakeMsg_(event, info) {
   if (info.status === 'ok') return ', ' + info.agent + (info.via !== info.agent ? ' dikabari lewat ' + info.via : ' langsung dibangunkan') + ' ⚡';
   if (info.status === 'fail') return ', tapi gagal membangunkan ' + info.agent + ' — chat ' + info.agent + ' langsung';
   return event === 'approve' ? '' : ', tapi ' + info.agent + ' belum tersambung webhook — chat ' + info.agent + ' supaya langsung dikerjakan';
+}
+
+// ---------------- v13: CHAT "PERINTAH" DARI WEB ----------------
+var CHAT_MAX_FILES = 5;
+var CHAT_MAX_FILE_BYTES = 10 * 1024 * 1024;     // per file
+var CHAT_MAX_TOTAL_BYTES = 20 * 1024 * 1024;    // total per pesan (Apps Script menerima body POST ±50 MB; base64 +33%)
+var CHAT_MAX_TEXT = 4000;
+
+/** Daftar id agent dari tab Agents. */
+function agentIds_(ss) { return readTab_(ss, 'Agents').map(function (a) { return String(a.id || '').trim(); }).filter(String); }
+
+/** Folder Drive untuk upload: Script Property UPLOAD_FOLDER_ID, atau buat/pakai "AI Office Uploads" lalu simpan id-nya. */
+function uploadFolder_() {
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('UPLOAD_FOLDER_ID');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { throw new Error('UPLOAD_FOLDER_ID tidak bisa dibuka: ' + String(e && e.message || e).slice(0, 80)); } }
+  var it = DriveApp.getFoldersByName('AI Office Uploads');
+  var f = it.hasNext() ? it.next() : DriveApp.createFolder('AI Office Uploads');
+  props.setProperty('UPLOAD_FOLDER_ID', f.getId());
+  return f;
+}
+
+function cleanName_(n) {
+  n = String(n || 'file').replace(/[\\\/:*?"<>|\u0000-\u001f]+/g, '_').replace(/\s+/g, ' ').trim();
+  return (n || 'file').slice(0, 120);
+}
+
+/** Jalankan sekali dari editor (Run) setelah deploy v13: memicu izin Drive & membuat folder "AI Office Uploads". */
+function setupUploads() {
+  var f = uploadFolder_();
+  console.log('Folder upload siap: ' + f.getName() + ' (' + f.getId() + ')');
+  return f.getId();
+}
+
+/** Pesan Kris -> bot. b = {to, text, task_id?, files:[{name,mime,dataBase64}], links:[...]} */
+function chatSend_(b) {
+  if (DEMO_MODE) throw new Error('Chat hanya aktif di mode asli.');
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var to = String(b.to || 'Jon').trim();
+  var ids = agentIds_(ss);
+  if (ids.indexOf(to) < 0) throw new Error('Penerima tidak dikenal: ' + to);
+  var text = String(b.text || '').replace(/\r/g, '').trim();
+  if (text.length > CHAT_MAX_TEXT) throw new Error('Pesan terlalu panjang (maks ' + CHAT_MAX_TEXT + ' karakter).');
+  var taskId = String(b.task_id || '').trim();
+  if (taskId && !/^[A-Za-z0-9._-]{1,40}$/.test(taskId)) throw new Error('task_id tidak valid: ' + taskId);
+  var links = (Array.isArray(b.links) ? b.links : []).map(String).filter(function (u) { return /^https?:\/\/\S+$/i.test(u); }).slice(0, 20);
+  var files = Array.isArray(b.files) ? b.files : [];
+  if (!text && !files.length && !links.length) throw new Error('Pesan kosong.');
+  if (files.length > CHAT_MAX_FILES) throw new Error('Maksimal ' + CHAT_MAX_FILES + ' file per pesan.');
+  // cek ukuran dulu sebelum menyimpan apa pun
+  var total = 0, blobs = [];
+  files.forEach(function (f, i) {
+    var name = cleanName_(f && f.name), data = String((f && f.dataBase64) || '').replace(/^data:[^,]*,/, '');
+    if (!data) throw new Error('File "' + name + '" kosong.');
+    var bytes;
+    try { bytes = Utilities.base64Decode(data); } catch (e) { throw new Error('File "' + name + '" rusak (base64 tidak valid).'); }
+    if (bytes.length > CHAT_MAX_FILE_BYTES) throw new Error('File "' + name + '" terlalu besar (maks 10 MB per file). Taruh di Drive lalu kirim link-nya.');
+    total += bytes.length;
+    if (total > CHAT_MAX_TOTAL_BYTES) throw new Error('Total lampiran lebih dari 20 MB. Kirim sebagian dulu, atau pakai link Drive.');
+    blobs.push(Utilities.newBlob(bytes, String((f && f.mime) || 'application/octet-stream').slice(0, 100), name));
+  });
+  var chatId = 'C-' + Utilities.formatDate(new Date(), TZ, 'yyyyMMdd-HHmmss') + '-' + Math.floor(Math.random() * 9000 + 1000);
+  var fileLinks = [];
+  if (blobs.length) {
+    var folder = uploadFolder_(), pub = String(PropertiesService.getScriptProperties().getProperty('UPLOAD_PUBLIC') || '').toLowerCase() === 'true';
+    blobs.forEach(function (bl) {
+      var file = folder.createFile(bl);
+      try { file.setDescription('AI Office · ' + chatId + ' · Kris → ' + to + (taskId ? ' · ' + taskId : '')); } catch (e) {}
+      if (pub) { try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {} }
+      fileLinks.push({ name: file.getName(), url: file.getUrl(), id: file.getId(), mime: bl.getContentType(), size: bl.getBytes().length });
+    });
+  }
+  var ringkas = (text || (fileLinks.length ? '📎 ' + fileLinks.length + ' file' : '🔗 link')).replace(/\s+/g, ' ');
+  if (ringkas.length > 40) ringkas = ringkas.slice(0, 39) + '…';
+  var isi = text;
+  if (fileLinks.length) isi += (isi ? '\n\n' : '') + 'Lampiran:\n' + fileLinks.map(function (f) { return '- ' + f.name + ': ' + f.url; }).join('\n');
+  if (links.length) isi += (isi ? '\n\n' : '') + 'Link:\n' + links.map(function (u) { return '- ' + u; }).join('\n');
+  logObrolanRow_(['Kris', to, taskId, ringkas, isi, chatId]);
+  addLog('Kris', 'Kris kirim perintah ke ' + to + (taskId ? ' (' + taskId + ')' : '') + ': ' + ringkas + (fileLinks.length ? ' · ' + fileLinks.length + ' file' : ''));
+  var wake = sendWebhook_(to, { event: 'chat', action: 'chat', from: 'Kris', to: to, text: text, task_id: taskId,
+    file_links: fileLinks, links: links, chat_id: chatId }, 'chat ' + chatId + ' Kris→' + to);
+  return { ok: true, msg: 'Pesan ke ' + to + ' terkirim', chat_id: chatId, wake: wake, files: fileLinks.map(function (f) { return { name: f.name, url: f.url }; }) };
+}
+
+/** Tulis satu baris Obrolan [dari, ke, task_id, ringkas, isi, chat_id]; kolom chat_id ditambahkan kalau belum ada. */
+function logObrolanRow_(r) {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Obrolan');
+  if (!sh) { sh = ss.insertSheet('Obrolan'); sh.getRange(1, 1, 1, 7).setValues([['waktu', 'dari', 'ke', 'task_id', 'ringkas', 'isi', 'chat_id']]); }
+  var lastCol = Math.max(6, sh.getLastColumn());
+  var h = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(function (x) { return String(x).trim(); });
+  var c = h.indexOf('chat_id');
+  if (c < 0) { c = Math.max(6, h.filter(String).length); if (sh.getMaxColumns() < c + 1) sh.insertColumnsAfter(sh.getMaxColumns(), c + 1 - sh.getMaxColumns()); sh.getRange(1, c + 1).setValue('chat_id'); }
+  var row = [now_(), r[0], r[1] || 'semua', r[2] || '', r[3] || '', r[4] || r[3] || ''];
+  while (row.length < c) row.push('');
+  row[c] = r[5] || '';
+  sh.getRange(sh.getLastRow() + 1, 1, 1, row.length).setNumberFormat('@').setValues([row]);
+}
+
+/** Riwayat chat Kris <-> bot (7 hari, maks 300 baris). bot opsional = satu bot saja. */
+function chatHistory_(bot, limit) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var n = Math.max(1, Math.min(300, Number(limit) || 200));
+  var batas = Utilities.formatDate(new Date(Date.now() - 7 * 24 * 3600 * 1000), TZ, 'yyyy-MM-dd HH:mm');
+  var rows = readTab_(ss, 'Obrolan').filter(function (o) {
+    if (!o.dari || waktuStd_(o.waktu) < batas) return false;
+    var withKris = o.dari === 'Kris' || o.ke === 'Kris';
+    if (!withKris) return false;
+    if (bot) return o.dari === bot || o.ke === bot;
+    return true;
+  }).map(function (o) { return { waktu: o.waktu, dari: o.dari, ke: o.ke, task_id: o.task_id || '', ringkas: o.ringkas || '', isi: o.isi || '', chat_id: o.chat_id || '' }; });
+  return { ok: true, version: 'v13', messages: rows.slice(-n), wake: wakeMap_(), serverTime: now_() };
 }
 
 // ---------------- MODE LATIHAN (DEMO) ----------------
