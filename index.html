@@ -288,7 +288,7 @@ function apiPostJson(body,ok,fail,retried){
   fetch(API_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){
    if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
    var j;try{j=JSON.parse(t)}catch(e){throw new Error('Balasan server bukan JSON')}
-   if(j.ok)return ok(j.msg);
+   if(j.ok)return ok(j.msg,j);
    if(/^KEY:/.test(j.error||'')){
     forgetKey();
     if(retried)return fail(new Error('Kunci rahasia salah. Kunci dihapus, coba lagi.'));
@@ -310,7 +310,7 @@ var API={
  reset:function(cb){cb()},
  /* approve / revisi dari pop-up (mode asli) */
  act:function(fn,args,ok,fail){
-  if(window.PREVIEW&&window.PREVIEW[fn]){setTimeout(function(){try{ok(window.PREVIEW[fn].apply(null,args))}catch(e){fail(e)}},300);return}
+  if(window.PREVIEW&&window.PREVIEW[fn]){setTimeout(function(){try{var pr=window.PREVIEW[fn].apply(null,args);if(pr&&typeof pr==='object')ok(pr.msg,pr);else ok(pr,{ok:true,msg:pr})}catch(e){fail(e)}},300);return}
   if(fn==='approveTask')return apiPostJson({action:'approve',task_id:args[0]},ok,fail);
   if(fn==='reviseTask')return apiPostJson({action:'revise',task_id:args[0],note:args[1]},ok,fail);
   if(fn==='logObrolan')return apiPostJson({action:'obrolan',dari:args[0],ke:args[1],task_id:args[2],ringkas:args[3],isi:args[4]},ok,fail);
@@ -354,7 +354,7 @@ var TALKSEEN=null,talkQ=[];
 function scanTalks(){var L=talks(),now=Date.now();
  L.forEach(function(x,i){x._i=i});
  if(TALKSEEN===null){TALKSEEN={};L.forEach(function(x){TALKSEEN[talkKey(x)]=1;var age=now-tms(x.waktu);if(age<10*60e3&&age>-5*60e3)talkQ.push(x)});return}
- L.forEach(function(x){var k=talkKey(x);if(!TALKSEEN[k]){TALKSEEN[k]=1;talkQ.push(x)}});
+ L.forEach(function(x){var k=talkKey(x);if(!TALKSEEN[k]){TALKSEEN[k]=1;if(x.dari==='Kris'&&x.task_id&&ECHO[x.task_id]&&now-ECHO[x.task_id]<5*60e3)return;talkQ.push(x)}});
 }
 function takeTalks(){var q=talkQ;talkQ=[];return q}
 function openThread(i){var x=talks()[i];if(!x)return;var L=talks(),cut=tms(x.waktu)-24*3600e3,th;
@@ -440,7 +440,9 @@ function openTask(tid){
  var head=mini(t.agent,t.status).replace('class="mini"','class="mini big"')+'<div style="min-width:0"><h2>'+esc(t.judul)+'</h2><div style="color:var(--mut);font-size:12.5px">'+esc(t.task_id)+' · Alur '+esc(t.alur)+'</div></div>';
  var body='<div class="grid2">'+kv('Dikerjakan',' <span data-ag="'+esc(t.agent)+'" style="cursor:pointer;text-decoration:underline">'+esc(t.agent)+'</span>')+kv('Status',pill(t.status).replace('margin-left:4px',''))+kv('Tahap',esc(t.tahap||'—'))+kv('Dibuat / diperbarui',esc(fmtTime(t.dibuat))+' → '+esc(fmtTime(t.diperbarui))+' WIB')+'</div>';
  if(t.status==="Menunggu approve")body+='<div class="note" style="margin-bottom:12px">Menunggu approve Kris. '+(canAct?'Tombol <b>✓ Approve</b> / <b>↻ Revisi</b> ada di bawah hasil.':'Approve lewat chat ke Jon atau ke '+esc(t.agent)+'.')+'</div>';
- if(t.status==="Revisi"&&t.catatan_revisi)body+='<div class="note rev" style="margin-bottom:12px"><b>Catatan revisi:</b><br>'+esc(t.catatan_revisi).replace(/\n/g,'<br>')+'</div>';
+ if(t.status==="Revisi"){var wo=wakeOn(t.agent),wk=WAKE[t.task_id],ws=wk?wk.status:(wo===true?'ok':wo===false?'none':'');
+  body+='<div class="note rev" style="margin-bottom:12px"><b>↻ Revisi diproses '+esc(t.agent||'bot')+'.</b> '+(ws==='ok'?'⚡ '+esc(t.agent)+' sudah dibangunkan otomatis, hasil revisi akan kembali ke Review.':ws==='none'||ws==='fail'?'⚠ '+esc(t.agent)+' belum tersambung otomatis (webhook). Chat '+esc(t.agent)+' atau Jon supaya langsung dikerjakan.':'Hasil revisi akan kembali ke Review.')
+  +(t.catatan_revisi?'<br><br><b>Catatan revisi:</b><br>'+esc(t.catatan_revisi).replace(/\n/g,'<br>'):'')+'</div>'}
  if(t.link_file){var pv=previewUrl(t.link_file),li=!pv&&/\.(png|jpe?g|gif|webp)(\?|$)/i.test(t.link_file);body+='<div style="margin:4px 0 12px"><a class="linkbtn" href="'+esc(t.link_file)+'" target="_blank" rel="noopener">↗ Buka file</a></div>';if(pv)body+='<iframe class="frame" src="'+esc(pv)+'" allow="autoplay"></iframe>';else if(li)body+=imgHtml(t.link_file,'')}
  if(t.data_chart)body+='<div class="sec">Grafik</div><div class="charts" data-chart="'+esc(t.data_chart)+'"></div>';
  var imgs=splitUrls(t.gambar);if(imgs.length)body+='<div class="sec">Gambar ('+imgs.length+')</div><div class="rimgs">'+imgs.map(function(u){return imgHtml(u,'')}).join('')+'</div>';
@@ -450,7 +452,7 @@ function openTask(tid){
   +'<button class="btn appr" data-do="approve">✓ Approve</button>'
   +'<textarea id="revNote" rows="3" placeholder="Tulis catatan revisi untuk '+esc(t.agent)+'… (misal: harga baris 2 dicek lagi, tambah grafik 1 bulan)"></textarea>'
   +'<button class="btn revb" data-do="revise">↻ Kirim revisi</button>'
-  +'<div class="m" style="margin-top:6px">Approve → '+esc(t.agent)+' santai lagi & Jon lanjut simpan file. Revisi → '+esc(t.agent)+' langsung balik ke mejanya untuk kerja lagi.</div></div>';
+  +'<div class="m" style="margin-top:6px">Approve → '+esc(t.agent)+' santai lagi & Jon lanjut simpan file. Revisi → '+esc(t.agent)+' langsung balik ke mejanya untuk kerja lagi.'+(wakeOn(t.agent)===false?' <span style="color:#fb923c">('+esc(t.agent)+' belum tersambung otomatis — setelah kirim, chat '+esc(t.agent)+' juga.)</span>':wakeOn(t.agent)===true?' <span style="color:#34d399">⚡ otomatis</span>':'')+'</div></div>';
  openModal(head,body);
  emit('seen');
 }
@@ -517,10 +519,24 @@ function optimistic(tid,fT,fA){
  var a=agentById(t.agent);if(a&&fA)Object.keys(fA).forEach(function(k){a[k]=fA[k]});
  actSeq++;renderSide();emit('state');
 }
+/* v16: setelah Approve/Revisi, cek Sheet lebih rapat beberapa menit supaya hasil kerja bot cepat terlihat */
+var burstUntil=0;
+function burst(){burstUntil=Date.now()+5*60e3;[1500,3500,7000].forEach(function(ms){setTimeout(poll,ms)})}
+var WAKE={};/* task_id -> {status,agent,via} dari balasan server v12 */
 function runAct(fn,args,okMsg,color){
  actBusy++;var my=++actSeq;
- API.act(fn,args,function(r){actBusy--;toast(esc(r||okMsg),color);actSeq++;poll()},function(e){actBusy--;actSeq++;toast('⚠ Gagal: '+esc(e&&e.message||e)+' — perubahan dikembalikan.','#f87171',10000);poll()});
+ API.act(fn,args,function(r,j){actBusy--;var w=j&&j.wake;
+  if(w&&w.agent){WAKE[args[0]]=w;if(w.status!=='ok'&&fn==='reviseTask'){toast(esc(r||okMsg),'#fb923c',12000)}else toast(esc(r||okMsg),color,6000)}
+  else toast(esc(r||okMsg),color);
+  actSeq++;poll();burst()},function(e){actBusy--;actSeq++;toast('⚠ Gagal: '+esc(e&&e.message||e)+' — perubahan dikembalikan.','#f87171',10000);poll()});
 }
+/** bot pemilik tugas sudah punya webhook (Code.gs v12 mengirim state.wake)? true/false/null(tidak diketahui) */
+function wakeOn(id){if(!state||!state.wake)return null;return !!state.wake[String(id||'').toUpperCase().replace(/[^A-Z0-9]/g,'_')]}
+/* bubble lokal langsung saat Revisi diklik (sebelum Sheet terbaca lagi) */
+var ECHO={};
+function localTalk(tid,agent){var w=nowStr();ECHO[tid]=Date.now();
+ talkQ.push({waktu:w,dari:'Kris',ke:agent,task_id:tid,ringkas:'Tolong revisi ya',_local:1});
+ talkQ.push({waktu:w,dari:agent,ke:'Kris',task_id:tid,ringkas:'Oke, revisinya aku kerjakan',_local:1});emit('talk')}
 function doApprove(tid){
  if(!(window.PREVIEW)&&!getKey())return ensureKey(function(){doApprove(tid)});
  var t=localTask(tid);if(!t)return;var a=agentById(t.agent);
@@ -532,8 +548,9 @@ function doApprove(tid){
 function doRevise(tid,note){
  if(!(window.PREVIEW)&&!getKey())return ensureKey(function(){doRevise(tid,note)});
  var t=localTask(tid);if(!t)return;var a=agentById(t.agent);closeModal();
- optimistic(tid,{status:'Revisi',tahap:'Revisi dari Kris',diperbarui:nowStr(),jon_todo:'REVISI',catatan_revisi:(t.catatan_revisi?t.catatan_revisi+'\n':'')+'['+nowStr()+'] '+note},a?{status:'Bekerja',ruangan_sekarang:a.ruangan_kerja||'CAFE',tugas_aktif:tid+' · Revisi: '+String(t.judul||'').slice(0,80)}:null);
+ optimistic(tid,{status:'Revisi',tahap:'Revisi diproses '+(t.agent||'bot'),diperbarui:nowStr(),jon_todo:'REVISI',catatan_revisi:(t.catatan_revisi?t.catatan_revisi+'\n':'')+'['+nowStr()+'] '+note},a?{status:'Bekerja',ruangan_sekarang:a.ruangan_kerja||'CAFE',tugas_aktif:tid+' · Revisi: '+String(t.judul||'').slice(0,80)}:null);
  toast('↻ Revisi <b>'+esc(tid)+'</b> dikirim, '+esc(t.agent||'bot')+' balik ke meja…','#fb923c');
+ if(t.agent)localTalk(tid,t.agent);
  runAct('reviseTask',[tid,note],'Revisi terkirim','#fb923c');
 }
 /* ---- loop ---- */
@@ -550,7 +567,8 @@ function apply(s){
 function poll(){var seq=actSeq;API.get(function(s){if(actBusy||seq!==actSeq)return;apply(s)},function(e){$('syncDot').classList.add('err');$('lastSync').textContent='gagal, coba lagi…'})}
 $('btnStep').onclick=function(){$('btnStep').disabled=true;API.step(function(r){$('btnStep').disabled=false;if(r)toast('▶ '+esc(r),'#60a5fa');poll()})};
 $('btnReset').onclick=function(){API.reset(function(){toast('↺ Demo di-reset','#a78bfa');poll()})};
-poll();setInterval(poll,5000);
+poll();var lastPoll=Date.now();setInterval(function(){var gap=document.hidden&&Date.now()>burstUntil?30000:5000;if(Date.now()-lastPoll>=gap-200){lastPoll=Date.now();poll()}},1000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden){lastPoll=Date.now();poll()}});
 return {meta:meta,roomName:roomName,doneTaskFor:doneTaskFor,openTask:openTask,openAgent:openAgent,openThreadRow:openThreadRow,takeTalks:takeTalks,on:function(f){listeners.push(f);if(state)f('state',state)},get state(){return state},esc:esc,toast:toast};
 })();
 </script>
@@ -1674,7 +1692,7 @@ var hideL=document.body.classList.contains('nolbl');
  ROOM_IDS.forEach(function(k){if(!signs[k]||hideL)return;var r=R3[k],cand=[[r.cx,r.z0],[r.cx,r.z1],[r.x0,r.cz],[r.x1,r.cz]],best=null,bd=-1;cand.forEach(function(c){var d=Math.hypot(c[0]-camera.position.x,c[1]-camera.position.z);if(d>bd){bd=d;best=c}});
   var p=proj(best[0],3.25,best[1]),el=signs[k];if(!p.ok){el.style.opacity=0;return}var w=el.offsetWidth,hh=el.offsetHeight||20,x=Math.max(6,Math.min(W_-w-6,p.x-w/2)),y=p.y-hh/2;
   function col(){return sr.some(function(q){return x<q[0]+q[2]+4&&x+w+4>q[0]&&y<q[1]+q[3]+2&&y+hh+2>q[1]})}
-  var n=0;while(col()&&n<3){y-=hh+3;n++}if(col()||y<(W_<600?96:50)||p.y>H_-60){el.style.opacity=0;return}sr.push([x,y,w,hh]);
+  var n=0;while(col()&&n<3){y-=hh+3;n++}if(col()||y<(W_<600?96:50)||p.y>H_-60){el.style.opacity=0;return}sr.push([x,y,w,hh,k]);
   el.style.opacity=1;el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)'});
  var items=[],px=ppu();
  for(var id in AG){var a=AG[id],sc=a.sc*(1+0.07*(a.hv||0)),by=a.P.body.position.y,top=(a.P.top+by)*sc;
@@ -1686,10 +1704,12 @@ var hideL=document.body.classList.contains('nolbl');
   var show=f.ok&&(!hit||a===hovered)&&(px>=8||a===hovered);
   el.style.opacity=show?1:0;el.classList.toggle('hov',a===hovered);if(show)placed.push([x-2,y-1,w+4,h+2]);el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
   var d=a.done,dv=doneVisible(a);if(dv!==!!a._dshow){a._dshow=dv;d.style.display=dv?'':'none';if(dv){d.classList.remove('pop');void d.offsetWidth;d.classList.add('pop')}}
-  var dh=0;if(dv){if(a._h.ok){var dw=d.offsetWidth||40;dh=d.offsetHeight||20;d.style.visibility='';d.style.transform='translate('+(a._h.x-dw/2).toFixed(1)+'px,'+(a._h.y-dh).toFixed(1)+'px)';d.style.zIndex=String(Math.round(a._f.y))}else d.style.visibility='hidden'}
+  var dh=0;if(dv){if(a._h.ok){var dw=d.offsetWidth||40;dh=d.offsetHeight||20;d.style.visibility='';d.style.transform='translate('+Math.max(4,Math.min(W_-dw-4,a._h.x-dw/2)).toFixed(1)+'px,'+(a._h.y-dh).toFixed(1)+'px)';d.style.zIndex=String(Math.round(a._f.y))}else d.style.visibility='hidden'}
   /* bubble omongan: di atas titik hijau / bubble done (done tetap prioritas, omongan ditumpuk di atasnya) */
   var sv=sayVisible(a),sy=a.say;if(sv!==!!a._sshow){a._sshow=sv;sy.style.display=sv?'':'none'}
-  if(sv){if(a._h.ok){var sw2=sy.offsetWidth||60,sh=sy.offsetHeight||22,yy=a._h.y-(dv?dh+6:0)-sh-3;sy.style.visibility='';sy.classList.toggle('out',a.sayUntil-TT<0.6);sy.style.transform='translate('+Math.max(4,Math.min(W_-sw2-4,a._h.x-sw2/2)).toFixed(1)+'px,'+yy.toFixed(1)+'px)';sy.style.zIndex=String(Math.round(a._f.y)+(a.sayAmb?0:2000))}else sy.style.visibility='hidden'}})}
+  if(sv){if(a._h.ok){var sw2=sy.offsetWidth||60,sh=sy.offsetHeight||22,yy=a._h.y-(dv?dh+6:0)-sh-3;sy.style.visibility='';sy.classList.toggle('out',a.sayUntil-TT<0.6);sy.style.transform='translate('+Math.max(4,Math.min(W_-sw2-4,a._h.x-sw2/2)).toFixed(1)+'px,'+yy.toFixed(1)+'px)';sy.style.zIndex=String(Math.round(a._f.y)+(a.sayAmb?0:2000))}else sy.style.visibility='hidden'}});
+ /* v16: papan nama ruangan yang tertimpa nama agent -> dipudarkan supaya teks tidak saling tumpuk */
+ sr.forEach(function(q){if(q.length<5)return;var hit=placed.some(function(t){return q[0]<t[0]+t[2]&&q[0]+q[2]>t[0]&&q[1]<t[1]+t[3]&&q[1]+q[3]>t[1]});signs[q[4]].style.opacity=hit?0.14:1})}
 
 /* ---------- omongan: percakapan asli (tab Obrolan) + obrolan santai (template, tanpa token) ---------- */
 function talkOn(){return !document.body.classList.contains('notalk')}

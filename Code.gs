@@ -1,5 +1,9 @@
 /**
- * AI Office · Arsco × Investment — Google Apps Script (MODE ASLI) v11 (+ API JSON untuk GitHub Pages)
+ * AI Office · Arsco × Investment — Google Apps Script (MODE ASLI) v12 (+ API JSON untuk GitHub Pages)
+ * v12: Approve/Revisi dari web LANGSUNG membangunkan bot pemilik tugas lewat webhook routine-nya
+ *      (Script Property WEBHOOK_<ID>_URL + WEBHOOK_<ID>_KEY), dicoba ulang 1x kalau gagal, cadangan lewat Jon,
+ *      hasilnya dicatat di Activity + kolom tahap, dan dikirim balik ke web (field "wake").
+ *      Penjaga opsional: resendStaleRevisions() tiap 10 menit (pasang sekali dengan installWatchdog()).
  * Membaca Google Sheet "AI Office - Status" dan menampilkan kantor AI.
  * Halaman (index.html) cek Sheet tiap 5 detik lewat getState().
  * Approve / revisi dari pop-up hasil lewat approveTask() & reviseTask() (mode asli).
@@ -22,7 +26,7 @@ function doGet(e) {
   if (p.api) {
     try {
       if (p.api === 'state') return jsonOut_(getState(), p.callback);
-      if (p.api === 'ping') return jsonOut_(JSON.stringify({ ok: true, version: 'v11', serverTime: now_() }), p.callback);
+      if (p.api === 'ping') return jsonOut_(JSON.stringify({ ok: true, version: 'v12', serverTime: now_(), wake: wakeMap_() }), p.callback);
       return jsonOut_(JSON.stringify({ ok: false, error: 'api tidak dikenal: ' + p.api }), p.callback);
     } catch (err) {
       return jsonOut_(JSON.stringify({ ok: false, error: String(err && err.message || err) }), p.callback);
@@ -41,7 +45,7 @@ function doGet(e) {
  * Semua action WAJIB menyertakan "key" = Script Property WEB_KEY (Project Settings > Script Properties).
  * Kalau WEB_KEY belum di-set, approve/revise ditolak. GET ?api=state tetap terbuka (baca saja).
  * Jalur lama google.script.run (halaman HtmlService, approveTask/reviseTask) tidak memakai key.
- * Balasan: {"ok":true,"msg":"…"} atau {"ok":false,"error":"…"}.
+ * Balasan: {"ok":true,"msg":"…","wake":{"status":"ok|fail|none","agent":"Prop","via":"Prop|Jon"}} atau {"ok":false,"error":"…"}.
  */
 function doPost(e) {
   var out;
@@ -51,9 +55,11 @@ function doPost(e) {
     var act = String(b.action || '').toLowerCase();
     checkWebKey_(act, b.key);
     if (act === 'approve') {
-      out = { ok: true, msg: approveTask(b.task_id || b.taskId) };
+      var ra = approveTask_(b.task_id || b.taskId);
+      out = { ok: true, msg: ra.msg, wake: ra.wake || null };
     } else if (act === 'revise' || act === 'revisi') {
-      out = { ok: true, msg: reviseTask(b.task_id || b.taskId, b.note || b.catatan) };
+      var rr = reviseTask_(b.task_id || b.taskId, b.note || b.catatan);
+      out = { ok: true, msg: rr.msg, wake: rr.wake || null };
     } else if (act === 'obrolan') {
       if (!b.dari) throw new Error('dari wajib diisi');
       logObrolan(b.dari, b.ke, b.task_id || b.taskId, b.ringkas, b.isi);
@@ -103,6 +109,7 @@ function getState() {
     activity: activity,
     obrolan: recentObrolan_(ss),
     demoMode: DEMO_MODE,
+    wake: wakeMap_(),
     serverTime: now_()
   });
 }
@@ -138,34 +145,134 @@ function logObrolan(dari, ke, taskId, ringkas, isi) {
   sh.getRange(sh.getLastRow() + 1, 1, 1, 6).setNumberFormat('@').setValues([[now_(), dari, ke || 'semua', taskId || '', ringkas, isi || ringkas]]);
 }
 
-// ---------------- WEBHOOK PER AGENT (opsional) ----------------
+// ---------------- WEBHOOK PER AGENT (v12) ----------------
 /**
- * Setelah Approve/Revisi dari web, kabari bot ybs kalau Script Property ada:
- *   WEBHOOK_<ID>_URL  (wajib, mis. WEBHOOK_ANNA_URL)
- *   WEBHOOK_<ID>_KEY  (opsional)
- *   WEBHOOK_KEY_HEADER (opsional, default "Authorization" -> nilai "Bearer <key>"; header lain -> nilai = key apa adanya)
- * Tidak pernah membuat aksi Kris gagal.
+ * Setelah Approve/Revisi dari web, bangunkan bot pemilik tugas lewat routine webhook-nya.
+ * Script Properties (Project Settings > Script Properties):
+ *   WEBHOOK_<ID>_URL   Webhook URL routine "AI Office webhook" bot itu (mis. WEBHOOK_PROP_URL)
+ *   WEBHOOK_<ID>_KEY   Webhook key routine itu (dikirim sebagai header Authorization: Bearer <key>)
+ *   WEBHOOK_KEY_HEADER (opsional, default "Authorization")
+ *   WEBHOOK_FALLBACK   (opsional, default "Jon") bot cadangan kalau bot pemilik belum punya webhook;
+ *                      bot cadangan menerima payload yang sama + for_agent, lalu meneruskan ke bot pemilik.
+ * Tidak pernah membuat aksi Kris gagal. Kembalian: {status:'ok'|'fail'|'none', agent, via, code}
  */
-function notifyAgent_(event, t, catatan) {
+function propKey_(id) { return String(id || '').toUpperCase().replace(/[^A-Z0-9]/g, '_'); }
+
+/** Peta agent -> true kalau WEBHOOK_<ID>_URL sudah di-set (tanpa membocorkan URL/key). */
+function wakeMap_() {
+  var out = {};
   try {
-    if (!t || !t.agent) return;
+    var all = PropertiesService.getScriptProperties().getProperties();
+    Object.keys(all).forEach(function (k) {
+      var m = k.match(/^WEBHOOK_(.+)_URL$/);
+      if (m && /^https:\/\//.test(String(all[k] || ''))) out[m[1]] = true;
+    });
+  } catch (e) {}
+  return out;
+}
+
+function postWebhook_(url, key, payload) {
+  var hName = PropertiesService.getScriptProperties().getProperty('WEBHOOK_KEY_HEADER') || 'Authorization';
+  var headers = {};
+  if (key) headers[hName] = (hName.toLowerCase() === 'authorization' && !/^(Bearer|Basic)\s/i.test(key)) ? 'Bearer ' + key : key;
+  var res = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json', headers: headers,
+    payload: JSON.stringify(payload), muteHttpExceptions: true, followRedirects: true });
+  return res.getResponseCode();
+}
+
+function notifyAgent_(event, t, catatan, extra) {
+  var label = event === 'approve' ? 'Approve' : 'Revisi';
+  var info = { status: 'none', agent: (t && t.agent) || '', via: '', code: 0 };
+  try {
+    if (!t || !t.agent) return info;
     var props = PropertiesService.getScriptProperties();
-    var up = String(t.agent).toUpperCase().replace(/[^A-Z0-9]/g, '_');
-    var url = props.getProperty('WEBHOOK_' + up + '_URL');
-    if (!url) return;
-    var key = props.getProperty('WEBHOOK_' + up + '_KEY');
-    var hName = props.getProperty('WEBHOOK_KEY_HEADER') || 'Authorization';
-    var headers = {};
-    if (key) headers[hName] = (hName.toLowerCase() === 'authorization' && !/^(Bearer|Basic)\s/i.test(key)) ? 'Bearer ' + key : key;
-    var payload = { event: event, task_id: t.task_id, agent: t.agent, judul: t.judul || '', catatan: catatan || '',
-      link_file: t.link_file || '', waktu: now_() };
-    var res = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json', headers: headers,
-      payload: JSON.stringify(payload), muteHttpExceptions: true, followRedirects: true });
-    var code = res.getResponseCode();
-    addLog('Sistem', 'Webhook ' + event + ' ' + t.task_id + ' → ' + t.agent + ': ' + (code >= 200 && code < 300 ? 'OK ' : 'gagal ') + code);
+    var fbName = String(props.getProperty('WEBHOOK_FALLBACK') || 'Jon').trim();
+    var own = propKey_(t.agent), fb = propKey_(fbName);
+    var target = own, url = props.getProperty('WEBHOOK_' + own + '_URL');
+    if (!url && fb && fb !== own) { target = fb; url = props.getProperty('WEBHOOK_' + fb + '_URL'); }
+    var viaName = target === own ? t.agent : fbName;
+    if (!url) {
+      addLog('Sistem', label + ' ' + t.task_id + ': ' + t.agent + ' belum tersambung webhook (WEBHOOK_' + own + '_URL kosong) — tercatat di Sheet, bot baru kerja saat dibuka/di-chat');
+      return info;
+    }
+    var key = props.getProperty('WEBHOOK_' + target + '_KEY');
+    var payload = {
+      event: event,                                   // 'revisi' | 'approve' (dipakai routine lama)
+      action: event === 'approve' ? 'approve' : 'revise',
+      task_id: t.task_id, agent: t.agent, agent_id: t.agent, for_agent: t.agent,
+      via: viaName,
+      judul: t.judul || '', status: event === 'approve' ? 'Selesai' : 'Revisi',
+      catatan: catatan || '', catatan_revisi: (extra && extra.catatan_revisi) || t.catatan_revisi || '',
+      link_file: t.link_file || '', tipe_hasil: t.tipe_hasil || '',
+      sheet_id: SHEET_ID, waktu: now_(), resend: !!(extra && extra.resend)
+    };
+    var code = 0, err = '';
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try { code = postWebhook_(url, key, payload); err = ''; } catch (e) { code = 0; err = String(e && e.message || e).slice(0, 80); }
+      if (code >= 200 && code < 300) break;
+      if (code >= 400 && code < 500 && code !== 408 && code !== 429) break;   // URL/key salah: tidak perlu dicoba ulang
+      Utilities.sleep(1500);
+    }
+    var ok = code >= 200 && code < 300;
+    info = { status: ok ? 'ok' : 'fail', agent: t.agent, via: viaName, code: code };
+    addLog('Sistem', 'Webhook ' + event + (payload.resend ? ' (ulang)' : '') + ' ' + t.task_id + ' → ' + info.via +
+      (info.via !== t.agent ? ' (untuk ' + t.agent + ')' : '') + ': ' + (ok ? 'OK ' + code : 'gagal ' + (code || err)));
   } catch (e) {
+    info.status = 'fail';
     try { addLog('Sistem', 'Webhook ' + event + ' ' + (t && t.task_id) + ' → ' + (t && t.agent) + ': error ' + String(e && e.message || e).slice(0, 80)); } catch (e2) {}
   }
+  return info;
+}
+
+/** Tulis hasil "bangunkan bot" ke kolom tahap supaya terlihat di web. */
+function wakeTahap_(event, info) {
+  var a = info.agent || 'bot';
+  if (event === 'approve') return info.status === 'ok' ? 'Di-approve Kris (web) · ' + info.via + ' dikabari' : 'Di-approve Kris (web)';
+  if (info.status === 'ok') return 'Revisi diproses ' + a + (info.via !== a ? ' (lewat ' + info.via + ')' : '');
+  if (info.status === 'fail') return 'Revisi dari Kris · gagal membangunkan ' + a + ', chat ' + a;
+  return 'Revisi dari Kris · menunggu ' + a + ' dibuka (webhook belum dipasang)';
+}
+
+/**
+ * Penjaga (opsional): revisi yang 15+ menit belum disentuh bot dikirim ulang SEKALI.
+ * Pasang sekali: jalankan installWatchdog() dari editor (minta izin trigger).
+ */
+function resendStaleRevisions() {
+  if (DEMO_MODE) return;
+  var ss = SpreadsheetApp.openById(SHEET_ID), props = PropertiesService.getScriptProperties();
+  var batas = Utilities.formatDate(new Date(Date.now() - 15 * 60 * 1000), TZ, 'yyyy-MM-dd HH:mm');
+  var hari = Utilities.formatDate(new Date(Date.now() - 24 * 3600 * 1000), TZ, 'yyyy-MM-dd HH:mm');
+  readTab_(ss, 'Tasks').forEach(function (t) {
+    if (t.status !== 'Revisi' || String(t.jon_todo || '').toUpperCase() !== 'REVISI') return;
+    var w = waktuStd_(t.diperbarui);
+    if (!w || w > batas || w < hari) return;
+    var pk = 'RESENT_' + propKey_(t.task_id);
+    if (props.getProperty(pk) === w) return;            // sudah dikirim ulang untuk revisi ini
+    props.setProperty(pk, w);
+    var info = notifyAgent_('revisi', t, lastNote_(t.catatan_revisi), { resend: true });
+    if (info.status === 'ok') setRow_('Tasks', t.task_id, { tahap: wakeTahap_('revisi', info) + ' · dikirim ulang' });
+  });
+}
+function installWatchdog() {
+  // dijalankan sekali dari editor (Run). Aman dijalankan ulang: trigger lama diganti.
+  ScriptApp.getProjectTriggers().forEach(function (tr) { if (tr.getHandlerFunction() === 'resendStaleRevisions') ScriptApp.deleteTrigger(tr); });
+  ScriptApp.newTrigger('resendStaleRevisions').timeBased().everyMinutes(10).create();
+  return 'Penjaga revisi aktif (tiap 10 menit)';
+}
+/** Catatan terakhir dari kolom catatan_revisi ("[waktu] isi" per baris). */
+function lastNote_(hist) {
+  var L = String(hist || '').split('\n').filter(function (x) { return x.trim(); });
+  return L.length ? L[L.length - 1].replace(/^\[[^\]]*\]\s*/, '') : '';
+}
+/** Tes manual dari editor: kirim webhook 'ping' ke satu bot tanpa mengubah tugas. testWebhook('Prop') */
+function testWebhook(agentId) {
+  var props = PropertiesService.getScriptProperties(), k = propKey_(agentId || 'Jon');
+  var url = props.getProperty('WEBHOOK_' + k + '_URL');
+  if (!url) { console.log('WEBHOOK_' + k + '_URL belum di-set'); return 'WEBHOOK_' + k + '_URL belum di-set'; }
+  var code = postWebhook_(url, props.getProperty('WEBHOOK_' + k + '_KEY'), { event: 'ping', agent: agentId, waktu: now_(),
+    catatan: 'Tes koneksi dari AI Office. Tidak ada tugas, cukup balas Kris "webhook AI Office tersambung".' });
+  console.log('WEBHOOK_' + k + ' → HTTP ' + code);
+  return 'WEBHOOK_' + k + ' → HTTP ' + code;
 }
 
 function isDemo_(v) { return /T-DEMO-|^DEMO\s*·|\(DEMO\)/.test(String(v || '')); }   // penanda baris contoh lama
@@ -256,8 +363,9 @@ function agentOnTask_(a, taskId) {
   return !ta || ta.indexOf(taskId) >= 0 || a.status === 'Menunggu approve' || a.status === 'Idle';
 }
 
-/** Dipanggil tombol "✓ Approve" di pop-up hasil. */
-function approveTask(taskId) {
+/** Dipanggil tombol "✓ Approve" di pop-up hasil (google.script.run: kembalian teks). */
+function approveTask(taskId) { return approveTask_(taskId).msg; }
+function approveTask_(taskId) {
   var r = webTaskAction_(taskId, function (t, setT, ss) {
     if (t.status === 'Selesai') return 'Tugas ' + t.task_id + ' sudah Selesai.';
     var waktu = now_();
@@ -267,30 +375,41 @@ function approveTask(taskId) {
     addLog('Kris', 'Kris approve ' + t.task_id + ' via web');
     return { msg: 'Approve ' + t.task_id + ' tersimpan', t: t };
   });
-  if (typeof r === 'string') return r;
-  notifyAgent_('approve', r.t, '');
-  return r.msg;
+  if (typeof r === 'string') return { msg: r, wake: null };
+  var info = notifyAgent_('approve', r.t, '');
+  if (info.status === 'ok') { try { setRow_('Tasks', r.t.task_id, { tahap: wakeTahap_('approve', info) }); } catch (e) {} }
+  return { msg: r.msg + wakeMsg_('approve', info), wake: info };
 }
 
 /** Dipanggil tombol "↻ Kirim revisi". note = catatan revisi dari Kris. */
-function reviseTask(taskId, note) {
+function reviseTask(taskId, note) { return reviseTask_(taskId, note).msg; }
+function reviseTask_(taskId, note) {
   note = String(note || '').replace(/\r/g, '').trim();
   if (!note) throw new Error('Catatan revisi masih kosong.');
   if (note.length > 3000) note = note.slice(0, 3000);
   var r = webTaskAction_(taskId, function (t, setT, ss) {
     var waktu = now_();
     var hist = String(t.catatan_revisi || '').trim();
-    setT({ status: 'Revisi', tahap: 'Revisi dari Kris', diperbarui: waktu, jon_todo: 'REVISI',
-      catatan_revisi: (hist ? hist + '\n' : '') + '[' + waktu + '] ' + note });
+    var all = (hist ? hist + '\n' : '') + '[' + waktu + '] ' + note;
+    setT({ status: 'Revisi', tahap: 'Revisi dari Kris', diperbarui: waktu, jon_todo: 'REVISI', catatan_revisi: all });
+    t.catatan_revisi = all;
     var a = t.agent && agentRow_(ss, t.agent);
     if (a) setAgent(t.agent, { status: 'Bekerja', ruangan_sekarang: a.ruangan_kerja || 'CAFE',
       tugas_aktif: t.task_id + ' · Revisi: ' + String(t.judul || '').slice(0, 80) });
     var pendek = note.replace(/\s+/g, ' '); if (pendek.length > 80) pendek = pendek.slice(0, 77) + '…';
     addLog('Kris', 'Kris minta revisi ' + t.task_id + ': ' + pendek);
-    return { msg: 'Revisi ' + t.task_id + ' terkirim, ' + (t.agent || 'bot') + ' kerja lagi', t: t };
+    try { logObrolan('Kris', t.agent || 'semua', t.task_id, 'Tolong revisi ya', note); } catch (e) {}
+    return { msg: 'Revisi ' + t.task_id + ' terkirim', t: t };
   });
-  notifyAgent_('revisi', r.t, note);
-  return r.msg;
+  var info = notifyAgent_('revisi', r.t, note, { catatan_revisi: r.t.catatan_revisi });
+  try { setRow_('Tasks', r.t.task_id, { tahap: wakeTahap_('revisi', info) }); } catch (e) {}
+  return { msg: r.msg + wakeMsg_('revisi', info), wake: info };
+}
+function wakeMsg_(event, info) {
+  if (!info || !info.agent) return '';
+  if (info.status === 'ok') return ', ' + info.agent + (info.via !== info.agent ? ' dikabari lewat ' + info.via : ' langsung dibangunkan') + ' ⚡';
+  if (info.status === 'fail') return ', tapi gagal membangunkan ' + info.agent + ' — chat ' + info.agent + ' langsung';
+  return event === 'approve' ? '' : ', tapi ' + info.agent + ' belum tersambung webhook — chat ' + info.agent + ' supaya langsung dikerjakan';
 }
 
 // ---------------- MODE LATIHAN (DEMO) ----------------
