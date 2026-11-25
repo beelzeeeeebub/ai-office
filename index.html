@@ -39,7 +39,7 @@ header>*{pointer-events:auto}
 #rooms button.on{background:rgba(255,255,255,.14);color:#fff}
 .hint{position:fixed;left:14px;bottom:16px;z-index:8;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;max-width:260px}
 /* side panel */
-#panel{position:fixed;top:62px;right:10px;bottom:62px;width:var(--pw);z-index:9;display:flex;flex-direction:column;gap:10px;overflow:auto;padding:2px;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .3s;scrollbar-width:thin}
+#panel{position:fixed;top:62px;right:10px;bottom:62px;width:var(--pw);z-index:9;display:flex;flex-direction:column;gap:10px;overflow:auto;padding:2px;transform:translateX(0);opacity:1;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .3s;scrollbar-width:thin}
 #panel.off{transform:translateX(calc(100% + 20px));opacity:0;pointer-events:none}
 .card{background:var(--glass);border:1px solid var(--line);border-radius:16px;padding:11px 13px;backdrop-filter:blur(14px);box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .card h3{margin:0 0 7px;font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut);display:flex;align-items:center;gap:8px}
@@ -224,6 +224,22 @@ body.chaton .toast{left:404px}body.chaton .hint{display:none}
 .arsbar input:focus,.arsbar select:focus{outline:none;border-color:#7c3aed}
 .arsip .item .fl{font-size:11px;color:#93c5fd;text-decoration:none;margin-left:6px;white-space:nowrap}
 .arsip .item .fl:hover{text-decoration:underline}
+/* v18: notifikasi antrean review */
+.pbar button{margin-left:0}
+.pbar #btnBell{margin-left:auto;font-size:14px;position:relative}
+#btnBell[data-st="off"]{opacity:.55}
+#btnBell[data-st="muted"]{opacity:.85}
+#btnBell[data-st="on"]{opacity:1}
+#btnBell[data-st="on"]{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.45)}
+#notifBan{display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 9px;margin:0 2px;border-radius:11px;background:rgba(242,169,0,.12);border:1px solid rgba(242,169,0,.4);font-size:12px;color:var(--txt);flex:none}
+#notifBan.on{display:flex}
+#notifBan span{flex:1;min-width:140px;line-height:1.35}
+#notifBan .go{cursor:pointer;padding:5px 10px;border-radius:8px;border:1px solid rgba(242,169,0,.55);background:rgba(242,169,0,.22);font:inherit;font-size:12px;font-weight:800;color:var(--txt);white-space:nowrap}
+#notifBan .go:hover{background:rgba(242,169,0,.35)}
+#notifBan .x{cursor:pointer;width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:transparent;font-size:12px;flex:none}
+.toast .clk{pointer-events:auto;cursor:pointer}
+.toast .clk:hover{background:rgba(36,42,62,.98)}
+@media (max-width:600px){#notifBan{font-size:11.5px;padding:6px 8px}#notifBan .go{padding:5px 8px}}
 </style>
 </head>
 <body>
@@ -256,7 +272,8 @@ body.chaton .toast{left:404px}body.chaton .hint{display:none}
  b.addEventListener('click',function(){on=!on;try{localStorage.setItem('aio_smalltalk',on?'1':'0')}catch(e){}apply()});apply()})();
 </script>
 <aside id="panel">
-  <div class="pbar"><span>Panel</span><button id="panelMin" title="Minimize panel" aria-label="Minimize panel">⟩</button></div>
+  <div class="pbar"><span>Panel</span><button type="button" id="btnBell" data-st="off" title="Notifikasi" aria-label="Pengaturan notifikasi">🔔</button><button id="panelMin" title="Minimize panel" aria-label="Minimize panel">⟩</button></div>
+  <div class="nban" id="notifBan"><span>🔔 Aktifkan notif supaya tahu saat tugas siap di-approve.</span><button type="button" class="go" id="notifAsk">Aktifkan</button><button type="button" class="x" id="notifBanX" title="Nanti saja" aria-label="Tutup">✕</button></div>
   <div class="card"><div class="stats" id="stats"></div></div>
   <div class="card" data-card="review"><h3>Antrean Review <span class="n" id="revN">0</span></h3><div id="review"></div>
     <div class="note">Klik tugas → lihat hasil → <b>✓ Approve</b> atau <b>↻ Revisi</b> langsung di sini (atau lewat chat ke Jon).</div></div>
@@ -426,6 +443,7 @@ function renderSide(){
  var tk=talks().filter(function(x){return filter==="Semua"||divOf(x.dari)===filter||divOf(x.ke)===filter}).slice(-40).reverse();
  $('talkN').textContent=tk.length;
  $('talks').innerHTML=tk.length?tk.map(function(x){return '<div class="item" data-o="'+x._i+'">'+mini(x.dari)+'<div style="flex:1;min-width:0"><div class="m" style="color:var(--txt);font-size:12.5px"><b>'+esc(x.dari)+'</b> → <b>'+esc(x.ke||'semua')+'</b>'+(x.task_id?' <span style="color:var(--mut)">· '+esc(x.task_id)+'</span>':'')+'</div><div class="m">'+esc(x.ringkas||String(x.isi||'').slice(0,60))+'</div><div class="time">'+esc(fmtTime(x.waktu))+' WIB</div></div></div>'}).join(''):'<div class="empty">Belum ada obrolan.</div>';
+ if(typeof updateTabBadge==='function')updateTabBadge();
  $('panel').querySelectorAll('[data-t]').forEach(function(n){n.onclick=function(){openTask(n.getAttribute('data-t'))}});
  $('panel').querySelectorAll('[data-a]').forEach(function(n){n.onclick=function(){openAgent(n.getAttribute('data-a'))}});
  $('panel').querySelectorAll('[data-o]').forEach(function(n){n.onclick=function(){openThread(+n.getAttribute('data-o'))}});
@@ -455,13 +473,15 @@ function openThread(i){var x=talks()[i];if(!x)return;var L=talks(),cut=tms(x.wak
 }
 function openThreadRow(x){var L=talks(),k=talkKey(x);for(var i=0;i<L.length;i++)if(talkKey(L[i])===k)return openThread(i)}
 document.querySelectorAll('#filters button').forEach(function(b){b.onclick=function(){filter=b.getAttribute('data-f');document.querySelectorAll('#filters button').forEach(function(x){x.classList.toggle('on',x===b)});if(state)renderSide()}});
-function setPanel(open){$('panel').classList.toggle('off',!open);document.body.classList.toggle('poff',!open);$('btnPanel').setAttribute('aria-pressed',open?'true':'false');try{localStorage.setItem('aio_panel',open?'1':'0')}catch(e){}}
+function setPanel(open){$('panel').classList.toggle('off',!open);document.body.classList.toggle('poff',!open);$('btnPanel').setAttribute('aria-pressed',open?'true':'false');try{localStorage.setItem('aio_panel',open?'1':'0')}catch(e){}
+ /* Chrome bisa membekukan transisi elemen yang mulai off-screen + opacity 0; kalau jam animasi tidak jalan, snap ke akhir. */
+ try{var p=$('panel');var kick=function(){var a=(p.getAnimations&&p.getAnimations())||[];if(a.length&&a.every(function(x){return !x.currentTime||x.currentTime<8}))a.forEach(function(x){try{x.finish()}catch(e2){}})};if(typeof requestAnimationFrame==='function')requestAnimationFrame(function(){requestAnimationFrame(function(){setTimeout(kick,50)})});else setTimeout(kick,50)}catch(e){}}
 (function(){var v=null;try{v=localStorage.getItem('aio_panel')}catch(e){}setPanel(v===null?window.innerWidth>1100:v==='1')})();
 $('btnPanel').onclick=function(){setPanel($('panel').classList.contains('off'))};
 $('panelMin').onclick=function(){setPanel(false);try{window.dispatchEvent(new Event('aio-panel'))}catch(e){}};
 $('panelTab').onclick=function(){setPanel(true);try{window.dispatchEvent(new Event('aio-panel'))}catch(e){}};
 /* ---- toasts ---- */
-function toast(msg,color,ms){var d=document.createElement('div');d.innerHTML=msg;if(color)d.style.borderLeftColor=color;$('toast').appendChild(d);while($('toast').children.length>4)$('toast').firstChild.remove();setTimeout(function(){d.style.transition='opacity .4s';d.style.opacity=0;setTimeout(function(){d.remove()},450)},ms||4500)}
+function toast(msg,color,ms,tid){try{(window.__TOASTLOG=window.__TOASTLOG||[]).push({html:String(msg),tid:tid||'',ms:ms||4500})}catch(e){}var d=document.createElement('div');d.innerHTML=msg;if(color)d.style.borderLeftColor=color;if(tid){d.className='clk';d.title='Buka '+tid;d.onclick=function(){openTask(tid)}}$('toast').appendChild(d);while($('toast').children.length>4)$('toast').firstChild.remove();setTimeout(function(){d.style.transition='opacity .4s';d.style.opacity=0;setTimeout(function(){d.remove()},450)},ms||4500)}
 function notifyNew(){
  var acts=(state.activity||[]),key=acts.length+'|'+(acts.length?acts[acts.length-1].waktu+acts[acts.length-1].aksi:'');
  if(lastActKey!==null&&key!==lastActKey){
@@ -639,13 +659,165 @@ function doRevise(tid,note){
  if(t.agent)localTalk(tid,t.agent);
  runAct('reviseTask',[tid,note],'Revisi terkirim','#fb923c');
 }
+/* ================= v18: notifikasi "Siap di-approve" (browser + bunyi + badge tab) ================= */
+var BASE_TITLE='AI Office · Arsco × Investment';
+var WAITSEEN=null; /* null = belum pernah disimpan (kunjungan pertama) */
+try{var _sr=localStorage.getItem('aio_notif_seen');if(_sr!==null)WAITSEEN=JSON.parse(_sr)||{}}catch(e){WAITSEEN={}}
+var NOTIF_MUTE=false;try{NOTIF_MUTE=localStorage.getItem('aio_notif_mute')==='1'}catch(e){}
+var NOTIF_HINT=true;try{NOTIF_HINT=localStorage.getItem('aio_notif_hint')!=='0'}catch(e){}
+var NOTIFLOG=[],SOUNDTRY=0,SOUNDN=0,audioCtx=null;
+function notifSupported(){return typeof Notification==='function'}
+function notifPerm(){try{return notifSupported()?String(Notification.permission||'default'):'unsupported'}catch(e){return 'unsupported'}}
+function waitingReview(){return (state&&state.tasks||[]).filter(function(t){return t&&t.task_id&&t.status==='Menunggu approve'})}
+function waitingNotify(){return waitingReview().filter(function(t){return !isApproved(t)})}
+function drawFavicon(n){
+ try{
+  var s=32,c=document.createElement('canvas');c.width=s;c.height=s;var g=c.getContext('2d');if(!g)return;
+  g.fillStyle='#f0a020';
+  if(g.roundRect){g.beginPath();g.roundRect(1,1,30,30,8);g.fill()}
+  else{g.beginPath();g.moveTo(9,1);g.lineTo(23,1);g.quadraticCurveTo(31,1,31,9);g.lineTo(31,23);g.quadraticCurveTo(31,31,23,31);g.lineTo(9,31);g.quadraticCurveTo(1,31,1,23);g.lineTo(1,9);g.quadraticCurveTo(1,1,9,1);g.fill()}
+  g.fillStyle='#2a1606';g.font='bold 13px system-ui,Segoe UI,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('AI',16,17);
+  if(n>0){
+   g.fillStyle='#ef4444';g.beginPath();g.arc(24,8,8,0,Math.PI*2);g.fill();
+   g.fillStyle='#fff';g.font='bold '+(n>9?9:11)+'px system-ui,sans-serif';g.fillText(n>9?'9+':String(n),24,9);
+  }
+  var href=c.toDataURL('image/png'),link=document.querySelector('link[rel="icon"]');
+  if(!link){link=document.createElement('link');link.rel='icon';document.head.appendChild(link)}
+  if(link.getAttribute('data-n')!==String(n)){link.setAttribute('data-n',String(n));link.href=href}
+ }catch(e){}
+}
+function updateTabBadge(){
+ var n=state?waitingReview().length:0;
+ document.title=n>0?('('+n+') '+BASE_TITLE):BASE_TITLE;
+ drawFavicon(n);
+}
+drawFavicon(0);
+function unlockAudio(){
+ try{
+  var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  if(!audioCtx)audioCtx=new AC();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+ }catch(e){}
+}
+['pointerdown','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,unlockAudio,{passive:true})});
+function playTing(){
+ if(NOTIF_MUTE)return false;
+ SOUNDTRY++;
+ try{
+  unlockAudio();
+  if(!audioCtx||audioCtx.state!=='running')return false;
+  var t=audioCtx.currentTime,freqs=[880,1318.5];
+  freqs.forEach(function(freq,i){
+   var o=audioCtx.createOscillator(),g=audioCtx.createGain(),start=t+i*0.055;
+   o.type='sine';o.frequency.setValueAtTime(freq,start);
+   g.gain.setValueAtTime(0.0001,start);
+   g.gain.exponentialRampToValueAtTime(0.09,start+0.018);
+   g.gain.exponentialRampToValueAtTime(0.0001,start+0.32);
+   o.connect(g);g.connect(audioCtx.destination);
+   o.start(start);o.stop(start+0.34);
+  });
+  SOUNDN++;return true;
+ }catch(e){return false}
+}
+function notifState(){var p=notifPerm();return NOTIF_MUTE?'muted':(p==='granted'?'on':'off')}
+function renderBell(){
+ var st=notifState(),b=$('btnBell');if(!b)return;
+ b.setAttribute('data-st',st);b.textContent=st==='muted'?'🔕':'🔔';
+ b.setAttribute('aria-label',st==='on'?'Notifikasi aktif, bunyi nyala':st==='muted'?'Bunyi dibisukan':'Notifikasi browser belum aktif');
+ b.title=st==='on'?'Notifikasi aktif · klik untuk bisukan bunyi':st==='muted'?'Bunyi dibisukan · klik untuk nyalakan':(notifPerm()==='default'?'Klik untuk mengaktifkan notifikasi browser':'Notifikasi browser tidak aktif — pemberitahuan tampil di halaman. Klik untuk bisukan/nyalakan bunyi.');
+ var ban=$('notifBan');if(!ban)return;
+ var show=NOTIF_HINT&&notifPerm()==='default';
+ ban.classList.toggle('on',!!show);
+}
+function saveSeen(){
+ WAITSEEN={};
+ (state&&state.tasks||[]).forEach(function(t){if(t&&t.task_id)WAITSEEN[t.task_id]=t.status});
+ try{localStorage.setItem('aio_notif_seen',JSON.stringify(WAITSEEN))}catch(e){}
+}
+function openFromNotif(tid){
+ try{window.focus()}catch(e){}
+ if(tid)try{openTask(tid)}catch(e){}
+}
+function pushReviewToast(title,body,tid){
+ toast('🔔 <b>'+esc(title)+'</b><br>'+esc(body),'#f2a900',8000,tid);
+}
+function fireReviewNotif(t,kind){
+ var title=kind==='revisi'?'Revisi selesai':'Siap di-approve';
+ var body=(t.task_id||'')+' · '+(t.judul||'Tugas')+' — '+(t.agent||'bot');
+ var sound=playTing();
+ var via='toast',n=null;
+ if(notifPerm()==='granted'){
+  try{
+   n=new Notification(title,{body:body,tag:'aio-'+t.task_id,renotify:true,silent:true,lang:'id'});
+   via='notification';
+   n.onclick=function(){openFromNotif(t.task_id);try{n.close()}catch(e){}};
+  }catch(e){via='toast'}
+ }
+ if(via==='toast')pushReviewToast(title,body,t.task_id);
+ NOTIFLOG.push({title:title,body:body,tid:t.task_id,via:via,sound:sound,kind:kind||'wait'});
+}
+function watchReview(){
+ updateTabBadge();
+ var waiting=waitingNotify();
+ if(WAITSEEN===null){
+  if(waiting.length){
+   var msg=waiting.length===1
+    ?('🔔 1 tugas menunggu approve: <b>'+esc(waiting[0].task_id)+'</b> · '+esc(waiting[0].judul||'')+' — '+esc(waiting[0].agent||''))
+    :('🔔 <b>'+waiting.length+' tugas menunggu approve</b> — buka Antrean Review.');
+   toast(msg,'#f2a900',7000,waiting.length===1?waiting[0].task_id:undefined);
+   playTing();
+   NOTIFLOG.push({title:'Ringkasan',body:waiting.length+' tugas menunggu approve',tid:'',via:'summary',sound:!NOTIF_MUTE,kind:'summary',n:waiting.length});
+  }
+  saveSeen();renderBell();return;
+ }
+ var news=waiting.filter(function(t){return WAITSEEN[t.task_id]!=='Menunggu approve'});
+ var rest=news.slice(3);
+ news.slice(0,3).forEach(function(t){fireReviewNotif(t,WAITSEEN[t.task_id]==='Revisi'?'revisi':'wait')});
+ if(rest.length)toast('🔔 +'+rest.length+' tugas lain juga menunggu approve.','#f2a900',6000);
+ saveSeen();renderBell();
+}
+function setNotifMute(on){NOTIF_MUTE=!!on;try{localStorage.setItem('aio_notif_mute',NOTIF_MUTE?'1':'0')}catch(e){}renderBell()}
+function requestNotifPerm(){
+ if(!notifSupported()){toast('Browser ini tidak mendukung notifikasi sistem. Pemberitahuan akan tampil di halaman.','#fb923c',7000);renderBell();return}
+ if(notifPerm()!=='default'){renderBell();return}
+ var done=function(){
+  var p=notifPerm();
+  if(p==='granted')toast('🔔 Notifikasi diaktifkan. Kamu akan diberi tahu saat tugas siap di-approve.','#34d399',5000);
+  else if(p==='denied')toast('Notifikasi browser ditolak. Pemberitahuan akan tampil di halaman ini.','#fb923c',7000);
+  renderBell();
+ };
+ try{
+  var r=Notification.requestPermission(function(){done()});
+  if(r&&typeof r.then==='function')r.then(done,done);
+ }catch(e){done()}
+}
+$('notifAsk').onclick=function(){unlockAudio();requestNotifPerm()};
+$('notifBanX').onclick=function(){NOTIF_HINT=false;try{localStorage.setItem('aio_notif_hint','0')}catch(e){}renderBell()};
+$('btnBell').onclick=function(){
+ unlockAudio();
+ if(notifPerm()==='default')requestNotifPerm();
+ else setNotifMute(!NOTIF_MUTE);
+};
+renderBell();
+window.__AIO_NOTIF={
+ toasts:window.__TOASTLOG||(window.__TOASTLOG=[]),
+ get mute(){return NOTIF_MUTE},setMute:setNotifMute,
+ perm:notifPerm,state:notifState,supported:notifSupported,
+ log:NOTIFLOG,
+ sounds:function(){return SOUNDN},tries:function(){return SOUNDTRY},
+ seen:function(){return WAITSEEN?Object.assign({},WAITSEEN):null},
+ waiting:function(){return waitingReview().map(function(t){return t.task_id})},
+ badge:function(){return waitingReview().length},
+ playTing:playTing,unlock:unlockAudio,render:renderBell,watch:watchReview,
+ request:requestNotifPerm
+};
 /* ---- loop ---- */
 function emit(ev){listeners.forEach(function(f){try{f(ev,state)}catch(e){console.error(e)}})}
 function apply(s){
  state=s||{};state.agents=(state.agents||[]).filter(function(a){return a&&a.id});state.tasks=state.tasks||[];state.activity=state.activity||[];
  $('demoBadge').style.display=state.demoMode?'':'none';$('practice').style.display=state.demoMode?'flex':'none';
  state.obrolan=(state.obrolan||[]).filter(function(x){return x&&x.dari});
- renderSide();notifyNew();scanTalks();emit('state');if(talkQ.length)emit('talk');
+ renderSide();notifyNew();watchReview();scanTalks();emit('state');if(talkQ.length)emit('talk');
  if(first&&window.PREVIEW&&location.hash){var h=decodeURIComponent(location.hash.slice(1));setTimeout(function(){if(h.indexOf('task:')===0)openTask(h.slice(5));if(h.indexOf('agent:')===0)openAgent(h.slice(6))},50)}
  first=false;
  $('lastSync').textContent=wib(new Date(),true);$('syncDot').classList.remove('err');
