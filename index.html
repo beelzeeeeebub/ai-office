@@ -315,19 +315,21 @@ body.chaton .toast{left:404px}body.chaton .hint{display:none}
 /* ===== KONFIGURASI: alamat API Apps Script (deployment /exec). Ganti di sini kalau deployment berubah. ===== */
 var API_URL_DEFAULT="https://script.google.com/macros/s/AKfycbzOKVqfYcW3mhljkrGyyzAYy_GBaPnugamIdP3Bp_Ya0BbYt5D68dciKol5CqilXiGpVQ/exec";
 var AIO=(function(){
-var ROOMNAMES={ENGINEER:"Ruang Engineer",ADMIN:"Ruang Admin",BOSS:"Ruang Boss · Jon",INVESTMENT:"Ruang Investment",LIBRARY:"Library · Arsip",PRINT:"Ruang Print",REVIEW:"Review / Approval",LOBBY:"Lobby",MEETING:"Meeting Room",CAFE:"Cafe",MUSHOLA:"Rooftop · Taman",ROOFTOP:"Rooftop · Taman"};
+var ROOMNAMES={ENGINEER:"Ruang Engineer",ADMIN:"Ruang Admin",BOSS:"Ruang Boss · Jon",INVESTMENT:"Ruang Investment",LIBRARY:"Library · Arsip",PRINT:"Ruang Print",REVIEW:"Review / Approval",LOBBY:"Lobby",IT:"Ruang IT · Iteng",MEETING:"Meeting Room",CAFE:"Cafe",MUSHOLA:"Rooftop · Taman",ROOFTOP:"Rooftop · Taman"};
 var META={
- Jon:{c:"#6d4aff",hair:"#22222b",sk:"#efc2a0",hs:"neat",acc:"crown",sc:1.06,peran:"Boss. Terima tugas dari Kris, bagi ke bot yang tepat, cek hasil, kirim file yang di-approve ke Arsip."},
- Prop:{c:"#2f6fdf",hair:"#5a3a22",sk:"#f3c7a3",hs:"short",acc:"hardhat",peran:"Proposal penawaran Arsco (Google Docs). Alur A: dibantu Flow, Tridi, Pensi."},
- Flow:{c:"#0e9f9a",hair:"#1d1d1d",sk:"#e8b896",hs:"short",acc:"headphones",peran:"Diagram alur / proses (misal flow STP) untuk proposal."},
- Tridi:{c:"#e0731f",hair:"#7a4a1f",sk:"#d9a47a",hs:"spiky",acc:"vr",peran:"Model & visual 3D untuk proposal atau presentasi."},
- Pensi:{c:"#d6457f",hair:"#6b2f2f",sk:"#f0c4a0",hs:"bob",acc:"beret",peran:"Deck presentasi (slides) dari proposal."},
- Surja:{c:"#7b8f1f",hair:"#3a2a1a",sk:"#c98a5c",hs:"short",acc:"cap",peran:"Surat Jalan PDF. Alur C: Surja lalu Invo."},
- Puro:{c:"#c0504d",hair:"#2f2f2f",sk:"#e8b48a",hs:"short",acc:"glasses",peran:"Purchase Order PDF. Alur B."},
- Invo:{c:"#3a8f4f",hair:"#8a5a2b",sk:"#dca070",hs:"short",acc:"visor",peran:"Invoice / tagihan PDF dari data PO & Surat Jalan."},
- Arsip:{c:"#8a5a2b",hair:"#a5a5a5",sk:"#e6c0a0",hs:"bun",acc:"goldglasses",peran:"Library. Simpan & catat semua file yang sudah di-approve ke Grok Arsco."},
- Anna:{c:"#a648b0",hair:"#4a2516",sk:"#e0aa7a",hs:"long",acc:"purpleglasses",peran:"Analis makro ekonomi. Jawab pertanyaan makro, bisa tambah/koreksi jawaban Cio."},
- Cio:{c:"#1f8fb5",hair:"#151515",sk:"#f0c9a8",hs:"spiky",acc:"shades",peran:"Chief Investment. Analisa spesifik satu emiten saham atau crypto."}
+ Jon:{c:"#6d4aff",hair:"#22222b",sk:"#efc2a0",hs:"neat",acc:"crown",sc:1.06,room:"BOSS",divisi:"Boss",peran:"Boss. Terima tugas dari Kris, bagi ke bot yang tepat, cek hasil, kirim file yang di-approve ke Arsip."},
+ Prop:{c:"#2f6fdf",hair:"#5a3a22",sk:"#f3c7a3",hs:"short",acc:"hardhat",room:"ADMIN",peran:"Proposal penawaran Arsco (Google Docs). Alur A: dibantu Itung, Flow, Tridi, Pensi."},
+ Itung:{c:"#4338ca",hair:"#2a2016",sk:"#e9b68e",hs:"neat",acc:"hardhat",room:"ENGINEER",divisi:"Arsco",nama:"Itung · Design WWTP/WTP",peran:"Design WWTP/STP/WTP: menghitung desain instalasi pengolahan air (kapasitas, dimensi unit, kebutuhan alat) untuk proposal."},
+ Flow:{c:"#0e9f9a",hair:"#1d1d1d",sk:"#e8b896",hs:"short",acc:"headphones",room:"ENGINEER",peran:"Diagram alur / proses (misal flow STP) untuk proposal."},
+ Tridi:{c:"#e0731f",hair:"#7a4a1f",sk:"#d9a47a",hs:"spiky",acc:"vr",room:"ENGINEER",peran:"Model & visual 3D untuk proposal atau presentasi."},
+ Pensi:{c:"#d6457f",hair:"#6b2f2f",sk:"#f0c4a0",hs:"bob",acc:"beret",room:"ENGINEER",peran:"Deck presentasi (slides) dari proposal."},
+ Surja:{c:"#7b8f1f",hair:"#3a2a1a",sk:"#c98a5c",hs:"short",acc:"cap",room:"ADMIN",peran:"Surat Jalan PDF. Alur C: Surja lalu Invo."},
+ Puro:{c:"#c0504d",hair:"#2f2f2f",sk:"#e8b48a",hs:"short",acc:"glasses",room:"ADMIN",peran:"Purchase Order PDF. Alur B."},
+ Invo:{c:"#3a8f4f",hair:"#8a5a2b",sk:"#dca070",hs:"short",acc:"visor",room:"ADMIN",peran:"Invoice / tagihan PDF dari data PO & Surat Jalan."},
+ Arsip:{c:"#8a5a2b",hair:"#a5a5a5",sk:"#e6c0a0",hs:"bun",acc:"goldglasses",room:"LIBRARY",peran:"Library. Simpan & catat semua file yang sudah di-approve ke Grok Arsco."},
+ Anna:{c:"#a648b0",hair:"#4a2516",sk:"#e0aa7a",hs:"long",acc:"purpleglasses",room:"INVESTMENT",divisi:"Investment",peran:"Analis makro ekonomi. Jawab pertanyaan makro, bisa tambah/koreksi jawaban Cio."},
+ Cio:{c:"#1f8fb5",hair:"#151515",sk:"#f0c9a8",hs:"spiky",acc:"shades",room:"INVESTMENT",divisi:"Investment",peran:"Chief Investment. Analisa spesifik satu emiten saham atau crypto."},
+ Iteng:{c:"#475569",hair:"#111318",sk:"#e8b896",hs:"spiky",acc:"headphones",room:"IT",divisi:"IT",nama:"Iteng · IT Engineering",peran:"IT Engineering: bangun & rawat AI Office, routine, webhook, Apps Script dan tools para bot."}
 };
 var PAL=["#5c6bc0","#26a69a","#ef6c00","#8d6e63","#ec407a","#7cb342","#29b6f6"];
 function hash(s){var h=0;s=String(s);for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h)}
@@ -704,6 +706,8 @@ function playTing(){
  if(NOTIF_MUTE)return false;
  SOUNDTRY++;
  try{
+  /* v19: sebelum ada klik/ketuk, browser melarang audio -> jangan buat AudioContext (hindari warning konsol) */
+  if(!audioCtx&&navigator.userActivation&&!navigator.userActivation.hasBeenActive)return false;
   unlockAudio();
   if(!audioCtx||audioCtx.state!=='running')return false;
   var t=audioCtx.currentTime,freqs=[880,1318.5];
@@ -813,8 +817,15 @@ window.__AIO_NOTIF={
 };
 /* ---- loop ---- */
 function emit(ev){listeners.forEach(function(f){try{f(ev,state)}catch(e){console.error(e)}})}
+/* v19: roster tetap konsisten walau Sheet belum punya baris agent (Itung/Iteng baru) + ruang kerja ikut META (Prop pindah ke Admin) */
+var WORKROOMS={ENGINEER:1,ADMIN:1,BOSS:1,INVESTMENT:1,LIBRARY:1,IT:1};
+function normAgents(list){var have={};
+ list.forEach(function(a){have[a.id]=1;var m=META[a.id];if(!m||!m.room)return;var old=String(a.ruangan_kerja||'').toUpperCase();
+  if(old!==m.room&&(!old||WORKROOMS[old])){a.ruangan_kerja=m.room;if(String(a.ruangan_sekarang||'').toUpperCase()===old||!a.ruangan_sekarang)a.ruangan_sekarang=m.room}});
+ Object.keys(META).forEach(function(id){if(have[id])return;var m=META[id];list.push({id:id,nama:m.nama||id,divisi:m.divisi||'Arsco',status:'Idle',ruangan_kerja:m.room||'',ruangan_sekarang:m.room||'CAFE',tugas_aktif:'',update_terakhir:'',_virtual:1})});
+ return list}
 function apply(s){
- state=s||{};state.agents=(state.agents||[]).filter(function(a){return a&&a.id});state.tasks=state.tasks||[];state.activity=state.activity||[];
+ state=s||{};state.agents=normAgents((state.agents||[]).filter(function(a){return a&&a.id}));state.tasks=state.tasks||[];state.activity=state.activity||[];
  $('demoBadge').style.display=state.demoMode?'':'none';$('practice').style.display=state.demoMode?'flex':'none';
  state.obrolan=(state.obrolan||[]).filter(function(x){return x&&x.dari});
  renderSide();notifyNew();watchReview();scanTalks();emit('state');if(talkQ.length)emit('talk');
@@ -826,7 +837,7 @@ function poll(){var seq=actSeq;API.get(function(s){if(actBusy||seq!==actSeq)retu
 $('btnStep').onclick=function(){$('btnStep').disabled=true;API.step(function(r){$('btnStep').disabled=false;if(r)toast('▶ '+esc(r),'#60a5fa');poll()})};
 $('btnReset').onclick=function(){API.reset(function(){toast('↺ Demo di-reset','#a78bfa');poll()})};
 /* ================= v17: CHAT "PERINTAH" (Kris -> bot), lampiran file & link ================= */
-var CHAT_BOTS=['Jon','Prop','Puro','Invo','Surja','Pensi','Flow','Arsip','Tridi','Anna','Cio'];
+var CHAT_BOTS=['Jon','Prop','Itung','Puro','Invo','Surja','Pensi','Flow','Arsip','Tridi','Iteng','Anna','Cio'];
 var CMAX_FILES=5,CMAX_FILE=10*1024*1024,CMAX_TOTAL=20*1024*1024;
 var CH={to:'Jon',open:false,att:[],server:'',hist:{},histAt:{},sending:false};
 try{CH.to=localStorage.getItem('aio_chat_to')||'Jon'}catch(e){}
@@ -895,7 +906,8 @@ function renderChatHead(){var sel=$('chTo');
  if(sel.getAttribute('data-h')!==html){sel.innerHTML=html;sel.setAttribute('data-h',html)}sel.value=CH.to;
  var w=cwake(CH.to),cw=$('chWake');cw.className='cw '+(w==='own'?'ok':w===null?'':'no');
  cw.textContent=w==='own'?'⚡ otomatis':w==='jon'?'↪ lewat Jon':w==='none'?'⚠ belum tersambung':'';
- cw.title=w==='own'?CH.to+' langsung dibangunkan lewat webhook':w==='jon'?CH.to+' belum punya webhook — pesan diteruskan lewat Jon':w==='none'?'Webhook belum dipasang: pesan tercatat di Sheet, bot baru kerja saat dibuka/di-chat':'';
+ var va=state&&state.agents?agentById(CH.to):null;if(va&&va._virtual){cw.className='cw no';cw.textContent='⚠ belum ada di tab Agents';cw.title=CH.to+' belum punya baris di tab Agents Sheet — server akan menolak pesan sampai barisnya ditambahkan'}
+ else cw.title=w==='own'?CH.to+' langsung dibangunkan lewat webhook':w==='jon'?CH.to+' belum punya webhook — pesan diteruskan lewat Jon':w==='none'?'Webhook belum dipasang: pesan tercatat di Sheet, bot baru kerja saat dibuka/di-chat':'';
  $('chDropTo').textContent=CH.to;$('chIn').placeholder='Tulis perintah untuk '+CH.to+'… (drag & drop / paste file atau link)';
  var ts=((state&&state.tasks)||[]).filter(function(t){return t.agent===CH.to}).slice().sort(function(a,b){return String(b.diperbarui).localeCompare(String(a.diperbarui))}).slice(0,30);
  var cur=$('chTask').value,th='<option value="">🔗 Tautkan ke tugas (opsional)</option>'+ts.map(function(t){return '<option value="'+esc(t.task_id)+'">'+esc(t.task_id)+' · '+esc(String(t.judul||'').slice(0,46))+' ('+esc(t.status)+')</option>'}).join('');
@@ -984,7 +996,7 @@ function hdrVar(){var h=document.querySelector('header');if(h)document.documentE
 hdrVar();window.addEventListener('resize',hdrVar);setTimeout(hdrVar,300);
 (function(){var v=null;try{v=localStorage.getItem('aio_chat_open')}catch(e){}if(v==='1')setTimeout(function(){openChat(true)},0);else{renderChatHead();renderAtt()}})();
 /* ================= v17: ARSIP (tugas yang sudah di-approve, khusus Arsco; Anna & Cio / Investment tidak masuk) ================= */
-var ARS_CATS=['Semua','Jon','Prop','Puro','Invo','Surja','Pensi','Flow','Arsip','Tridi'];
+var ARS_CATS=['Semua','Jon','Prop','Itung','Puro','Invo','Surja','Pensi','Flow','Arsip','Tridi','Iteng'];
 var ARS_EXCL={Anna:1,Cio:1};
 var arsCat='Semua';try{arsCat=localStorage.getItem('aio_arscat')||'Semua'}catch(e){}if(ARS_CATS.indexOf(arsCat)<0)arsCat='Semua';
 function arsAllowed(t){if(!t||!t.agent||ARS_EXCL[t.agent])return false;var a=agentById(t.agent);
@@ -1110,6 +1122,7 @@ var R3={
  ADMIN:{x0:-11,x1:0,z0:Z0,z1:-CZ,door:-5.3,floor:'#efe5d2',line:'#e2d6bf',dot:'#3f7be0'},
  BOSS:{x0:0,x1:10,z0:Z0,z1:-CZ,door:5,floor:'#e6e0f1',line:'#d7cfe6',dot:'#9a94b0'},
  INVESTMENT:{x0:10,x1:XN,z0:Z0,z1:-CZ,door:16.15,floor:'#dcefe2',line:'#cbe3d3',dot:'#2e9e5b'},
+ IT:{x0:XN,x1:X1,z0:Z0,z1:-CZ,door:30.4,floor:'#e3e5ee',line:'#d0d4e1',dot:'#7c5cff'}, /* v19: ruang IT Iteng di bekas halaman timur laut */
  LIBRARY:{x0:-26,x1:-15,z0:CZ,z1:Z1,door:-24,floor:'#ecdcc2',line:'#dfcdb0',dot:'#3f7be0'},
  PRINT:{x0:-15,x1:-9,z0:CZ,z1:Z1,door:-12,floor:'#e7e7ea',line:'#d8d8dc',dot:'#3f7be0'},
  REVIEW:{x0:-9,x1:-1,z0:CZ,z1:Z1,door:-5,floor:'#f5e8cf',line:'#eadabb',dot:'#3f7be0'},
@@ -1123,7 +1136,7 @@ ROOM_IDS.forEach(function(k){var r=R3[k];r.id=k;r.cx=(r.x0+r.x1)/2;r.cz=(r.z0+r.
 
 /* ---------- base + floors ---------- */
 B((X0+X1)/2,(Z0-2.6+Z1+15.6)/2,X1-X0+6.4,Z1-Z0+18.2,-0.75,0.7,'#4a4658',{r:0.12,cast:false}); /* tapak (gedung + halaman depan) */
-B((X0+XN)/2,(Z0-CZ)/2-0.225,XN-X0+0.9,-CZ-Z0+0.45,-0.05,0.04,'#5b566c',{cast:false});B((X0+X1)/2,(Z1-CZ)/2+0.225,X1-X0+0.9,Z1+CZ+0.45,-0.05,0.04,'#5b566c',{cast:false});
+B((X0+X1)/2,(Z0-CZ)/2-0.225,X1-X0+0.9,-CZ-Z0+0.45,-0.05,0.04,'#5b566c',{cast:false});B((X0+X1)/2,(Z1-CZ)/2+0.225,X1-X0+0.9,Z1+CZ+0.45,-0.05,0.04,'#5b566c',{cast:false});
 function floorTex(base,line,grass){return canvasTex(512,512,function(cx,w,h){
  cx.fillStyle=base;cx.fillRect(0,0,w,h);var n=4,s=w/n;
  if(grass){for(var k=0;k<2600;k++){cx.fillStyle=rnd(k)>0.5?'rgba(255,255,255,.10)':'rgba(30,90,30,.13)';cx.fillRect(rnd(k*3.1)*w,rnd(k*5.7)*h,2,5)}return}
@@ -1174,10 +1187,10 @@ function wall(ax,az,bx,bz,o){
   var inf=o.hedge?0.45:0.3,t2=o.glass?0.04:TH/2;if(horiz)ob(s[0],c-t2,s[1],c+t2,inf,1);else ob(c-t2,s[0],c+t2,s[1],inf,1)});
  return res}
 /* luar: utara tinggi penuh, sisi lain setengah tinggi (supaya isi ruangan tetap kelihatan) */
-wall(X0-0.15,Z0,XN+0.15,Z0,{h:FULL,th:0.3,color:'#e6ebf3'});
+wall(X0-0.15,Z0,X1+0.15,Z0,{h:FULL,th:0.3,color:'#e6ebf3'});
 wall(X0,Z0+0.15,X0,-CZ,{});wall(X0,CZ,X0,Z1+0.125,{});
 wall(X0,-CZ+0.04,X0,CZ-0.04,{glass:1});wall(X1,-CZ+0.04,X1,CZ-0.04,{glass:1});
-wall(XN,Z0+0.15,XN,-CZ-0.125,{color:'#e3efe6'});
+wall(X1,Z0+0.15,X1,-CZ,{}); /* v19: dinding luar timur ruang IT */
 wall(X0+0.125,Z1,R3.ROOFTOP.x0,Z1,{doors:[R3.LOBBY.door],dw:2.4}); /* pintu masuk utama di lobby */
 wall(R3.ROOFTOP.x0,Z1,X1+0.27,Z1,{hedge:1});wall(X1,CZ,X1,Z1-0.27,{hedge:1});
 /* koridor kaca */
@@ -1186,7 +1199,7 @@ wall(X0+0.125,-CZ,X1-0.125,-CZ,{glass:1,doors:ROOM_IDS.filter(function(k){return
 (function(){var dS=ROOM_IDS.filter(function(k){return !R3[k].N&&!R3[k].lobby}).map(function(k){return R3[k].door});
  wall(X0+0.125,CZ,R3.LOBBY.x0,CZ,{glass:1,doors:dS.filter(function(d){return d<R3.LOBBY.x0})});wall(R3.LOBBY.x1,CZ,X1-0.125,CZ,{glass:1,doors:dS.filter(function(d){return d>R3.LOBBY.x1})})})();
 /* sekat antar ruangan: kaca */
-[-11,0,10].forEach(function(x){wall(x,Z0+0.15,x,-CZ-0.04,{glass:1})});
+[-11,0,10,XN].forEach(function(x){wall(x,Z0+0.15,x,-CZ-0.04,{glass:1})});
 [-15,-9,R3.LOBBY.x0,R3.LOBBY.x1,R3.MEETING.x1].forEach(function(x){wall(x,CZ+0.04,x,Z1-0.125,{glass:1})});
 wall(R3.ROOFTOP.x0,CZ+0.04,R3.ROOFTOP.x0,Z1-0.125,{glass:1,doors:[11.2]}); /* v15: pintu Cafe->Taman di z=11.2 (dulu CAFE.x1-3.8 ikut tergeser jadi 19.2 -> kusen kaca melayang di atas mobil) */
 
@@ -1326,7 +1339,7 @@ var LS=[];
 function armSeat(room,x,z,yaw,c){armchair(x,z,yaw,c);LS.push([room,x+OX,z,yaw])}
 function sofaSeats(room,x,z,len,ry,c){sofa(x,z,len,ry,c);var co=Math.cos(ry),si=Math.sin(ry),o=len/3;[-o,o].forEach(function(lx){LS.push([room,x+OX+lx*co,z-lx*si,ry])})}
 /* ===== ENGINEER ===== */
-HOME.Prop=desk(-20.7,-10.3,2.2,'Prop',2,['doc','sheet']);
+HOME.Itung=desk(-20.7,-10.3,2.2,'Itung',2,['cad','sheet']); /* v19: Itung (Design WWTP/WTP) menggantikan meja Prop */
 HOME.Flow=desk(-16.3,-10.3,2.2,'Flow',2,['cad','code']);
 HOME.Tridi=desk(-20.7,-6.6,2.2,'Tridi',2,['cad','cad']);
 HOME.Pensi=desk(-16.3,-6.6,2.2,'Pensi',2,['slides','doc']);
@@ -1353,7 +1366,8 @@ cabinet(-9.9,NW,1.6,0,11);cabinet(-8.2,NW,1.6,0,14,{noplant:1});cabinet(-2.6,NW,
 wallArt(-5.3,1.5,NW,0,1.5,0.95,1);wallClock(-5.3,2.52,NW+0.02,0.24);
 fileCab(-10.95,-8.6,Math.PI/2,3);
 lowCab(-0.05,-8.4,2.4,-Math.PI/2,{items:['plant','box','books','vase']});
-roundTable(-3.2,-6.3,0.55,0.72,'#d9c4a8');chair(-4.35,-6.3,Math.PI/2,'#6d6a75');chair(-2.05,-6.3,-Math.PI/2,'#6d6a75');
+HOME.Prop=desk(-3.2,-6.6,2.0,'Prop',2,['doc','sheet']); /* v19: meja kerja Prop (pindah dari Engineer) menggantikan meja bundar */
+armSeat('ADMIN',-0.75,-5.0,-Math.PI/2,'#c67b5c');
 tallPlant(-10.5,-3.0,1);plant(-0.6,-3.0,0.85);floorLamp(-10.5,-12.9);
 sofaSeats('ADMIN',-2.4,-3.1,2.0,Math.PI,'#b08968');rug(-3.8,-4.5,-1.0,-2.5,'#f1e6d0');armSeat('ADMIN',-9.6,-4.7,Math.PI/2,'#c67b5c');sideTable(-9.7,-5.9,null,'lamp');
 
@@ -1482,6 +1496,58 @@ tallPlant(10.6,-3.0,1);plant(25.3,-13.4,1);bush(18.0,-3.0,0.7);
 sofaSeats('INVESTMENT',13.5,-3.1,2.0,Math.PI,'#3a8f4f');rug(12.0,-4.5,15.0,-2.5,'#e3efe6');sofaSeats('INVESTMENT',20.8,-3.1,2.0,Math.PI,'#2f5d46');rug(19.3,-4.5,22.3,-2.5,'#e3efe6');
 
 /* v15: perluasan/lounge Investment x 26..34 dihapus (kembali satu ruangan) */
+/* ===== v19: RUANG IT · Iteng (bekas halaman rumput timur laut, x XN..X1) ===== */
+var ITFX={leds:null,ledN:0,ledPh:[],strips:[],t:0,acc:0};
+(function buildIT(){var r=R3.IT,NWi=Z0+0.17;
+ /* rak server (3 unit) menempel dinding utara, pintu kaca gelap menghadap +z */
+ var RX=[26.95,27.8,28.65],RW=0.8,RD=0.9,RH=2.05,rz=Z0+0.15+RD/2+0.02,front=rz+RD/2;
+ var ledPos=[],LEDC=['#22c55e','#38bdf8','#22c55e','#f59e0b','#22c55e','#a78bfa'];
+ RX.forEach(function(x,ri){
+  B(x,rz,RW,RD,0,RH,'#1b1e27',{r:0.02});
+  B(x,rz,RW+0.02,RD+0.02,RH,0.04,'#2b2f3b');                 /* tutup atas */
+  B(x,rz,RW+0.02,RD+0.02,0,0.06,'#111318');                   /* plint */
+  for(var u=0;u<9;u++){var y=0.18+u*0.2;B(x,front+0.012,RW-0.12,0.024,y,0.14,u%3===2?'#3a3f4d':'#2a2e39',{r:0.006});
+   for(var l=0;l<3;l++)ledPos.push([x-RW/2+0.16+l*0.07,y+0.07,front+0.031,LEDC[(u+l+ri)%LEDC.length]])}
+  B(x+RW/2-0.07,front+0.08,0.03,0.02,0.6,0.5,'#9aa3ad',{r:0.01}); /* gagang pintu */
+ });
+ ob(RX[0]-RW/2,rz-RD/2,RX[RX.length-1]+RW/2,rz+RD/2,0.28,2);
+ /* pintu kaca rak (tipis, transparan) */
+ RX.forEach(function(x){var gd=M(new T.BoxGeometry(RW-0.06,RH-0.16,0.02),glassM,x,0.08+(RH-0.16)/2,front+0.06,null,false);gd.renderOrder=2});
+ /* LED berkedip: satu InstancedMesh */
+ var lg=new T.BoxGeometry(0.035,0.022,0.012),lm=new T.MeshBasicMaterial({color:0xffffff}),im=new T.InstancedMesh(lg,lm,ledPos.length),m4=new T.Matrix4();
+ ledPos.forEach(function(p,i){m4.makeTranslation(p[0],p[1],p[2]);im.setMatrixAt(i,m4);im.setColorAt(i,col(p[3]));ITFX.ledPh.push({c:col(p[3]),ph:rnd(i*5.3)*6.28,sp:1.5+rnd(i*2.1)*5})});
+ im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;im.userData.keep=1;world.add(im);ITFX.leds=im;ITFX.ledN=ledPos.length;
+ /* UPS + switch kecil di samping rak */
+ B(29.45,Z0+0.5,0.5,0.6,0,0.82,'#23262f',{r:0.02,ob:1});B(29.45,Z0+0.81,0.4,0.01,0.6,0.08,'#0f172a');
+ S(29.32,0.68,Z0+0.815,0.018,'#22c55e',{mo:{e:'#22c55e',ei:1.4}});S(29.4,0.68,Z0+0.815,0.018,'#38bdf8',{mo:{e:'#38bdf8',ei:1.4}});
+ /* cable tray di dinding utara di atas rak + kabel turun ke tiap rak */
+ var ty=2.42,tz=Z0+0.42;B(27.8,tz,2.9,0.42,ty,0.04,'#7f8396',{r:0.005});B(27.8,tz+0.2,2.9,0.03,ty+0.04,0.1,'#7f8396');B(27.8,tz-0.2,2.9,0.03,ty+0.04,0.1,'#7f8396');
+ [26.5,27.8,29.1].forEach(function(x){B(x,Z0+0.27,0.05,0.3,ty-0.06,0.06,'#5f6372')}); /* braket ke dinding */
+ B(27.8,tz,2.8,0.3,ty+0.042,0.05,'#2563eb',{r:0.01});B(27.7,tz+0.06,2.7,0.12,ty+0.094,0.04,'#f59e0b',{r:0.01}); /* bundel kabel */
+ RX.forEach(function(x,i){C(x+0.2,tz,0.025,0.025,RH+0.04,ty-RH-0.04,['#2563eb','#f59e0b','#22c55e'][i],{seg:8})});
+ /* whiteboard: arsitektur AI Office */
+ var wbIT=canvasTex(512,256,function(cx,w,h){cx.fillStyle='#fdfdfd';cx.fillRect(0,0,w,h);cx.fillStyle='#334155';cx.font='800 22px Inter,sans-serif';cx.fillText('AI OFFICE · stack',20,32);
+  var bx=[['Web',30,70,'#7c5cff'],['Apps Script',170,70,'#2563eb'],['Sheet',350,70,'#16a34a'],['Webhook',170,170,'#f59e0b'],['Bots',350,170,'#e11d48']];
+  cx.lineWidth=3;cx.font='700 17px Inter,sans-serif';bx.forEach(function(b){cx.strokeStyle=b[3];cx.strokeRect(b[1],b[2],125,46);cx.fillStyle=b[3];cx.fillText(b[0],b[1]+12,b[2]+29)});
+  cx.strokeStyle='#64748b';cx.lineWidth=2;[[155,93,170,93],[295,93,350,93],[232,116,232,170],[295,193,350,193]].forEach(function(l){cx.beginPath();cx.moveTo(l[0],l[1]);cx.lineTo(l[2],l[3]);cx.stroke()});
+  cx.fillStyle='#e11d48';cx.font='700 14px Inter,sans-serif';cx.fillText('v19 ✓',30,230)});
+ wallBoard(31.75,1.55,NWi,0,2.3,1.15,wbIT,'#2b2f3b');
+ /* strip neon RGB di dinding utara (atas) + bawah meja dev */
+ function strip(x,y,z,w,h,d){var m=new T.MeshBasicMaterial({color:0x7c5cff});var s=new T.Mesh(new T.BoxGeometry(w,h,d),m);s.position.set(x,y,z);s.userData.keep=1;world.add(s);ITFX.strips.push(m);return s}
+ strip((r.x0+r.x1)/2,2.82,Z0+0.16,r.x1-r.x0-0.7,0.035,0.02);
+ /* meja dev Iteng: 3 monitor kode */
+ HOME.Iteng=desk(31.0,-9.6,2.6,'Iteng',3,['code','chart','code'],'nopot');
+ strip(31.0,0.7275,-9.6+0.5+0.012,2.5,0.025,0.02);
+ rug(29.3,-11.4,32.7,-8.5,'#2d3142');
+ /* lounge kecil + tanaman */
+ sofaSeats('IT',27.85,-3.1,1.9,Math.PI,'#3b3f6b');rug(26.6,-4.5,29.1,-2.5,'#d7d9ee');
+ armSeat('IT',33.15,-6.4,-Math.PI/2,'#5b4bb7');sideTable(33.25,-7.6,null,'lamp');
+ tallPlant(33.4,-13.25,1);plant(33.3,-3.0,0.85);floorLamp(26.5,-6.2,'#e0d7ff');
+ lowCab(X1-0.14,-11.4,2.2,-Math.PI/2);
+})();
+function updateIT(dt){if(!ITFX.leds)return;ITFX.t+=dt;ITFX.acc+=dt;if(ITFX.acc<0.12)return;ITFX.acc=0;var t=ITFX.t,c=new T.Color(),im=ITFX.leds;
+ for(var i=0;i<ITFX.ledN;i++){var q=ITFX.ledPh[i],on=Math.sin(t*q.sp+q.ph)>-0.35?1:0.18;c.copy(q.c).multiplyScalar(on);im.setColorAt(i,c)}if(im.instanceColor)im.instanceColor.needsUpdate=true;
+ var h=(t*0.06)%1;ITFX.strips.forEach(function(m,k){m.color.setHSL((h+k*0.18)%1,0.85,0.58)})}
 
 /* ===== LIBRARY ===== */
 shelf(WW,8.1,10.9,Math.PI/2,1);
@@ -1707,12 +1773,11 @@ var FRONT={z0:Z1,walk0:Z1+1.05,walk1:Z1+2.85,bay0:Z1+3.0,bay1:Z1+8.0,road1:Z1+13
   var cxm=(ax+bx)/2,czm=(az+bz)/2;B(cxm,czm,horiz?len+0.1:0.82,horiz?0.82:len+0.1,-0.045,0.06,'#6b4a35',{cast:false,mo:{r:1}})}
  var dz=Z1+0.55,dg=R3.LOBBY.x0-0.1,dg2=R3.LOBBY.x1+0.1;
  run(X0-0.1,dz,dg,dz);run(dg2,dz,R3.ROOFTOP.x0,dz);
- run(X0-0.6,Z0-0.3,X0-0.6,Z1+0.6);run(XN+0.6,Z0-0.3,XN+0.6,-CZ-0.6);run(XN+0.6,-CZ-0.6,X1+0.6,-CZ-0.6);run(X1+0.6,-CZ-0.6,X1+0.6,CZ);
- run(X0-0.6,Z0-0.6,XN+0.6,Z0-0.6);
+ run(X0-0.6,Z0-0.3,X0-0.6,Z1+0.6);run(X1+0.6,Z0-0.3,X1+0.6,CZ);
+ run(X0-0.6,Z0-0.6,X1+0.6,Z0-0.6);
  run(sx0+0.8,FRONT.end-0.4,sx1-4.6,FRONT.end-0.4);
  buildHedges(H);
- /* v15: halaman rumput timur laut (bekas perluasan Investment) */
- tree(30.2,-8.6,0.9);tree(32.6,-12.0,0.75);bush(28.2,-5.2,0.7);bush(33.2,-4.6,0.6);
+ /* v19: halaman timur laut kini Ruang IT */
  /* bola topiari di kiri-kanan pintu masuk */
  [EX-3.45,EX+3.45].forEach(function(x){C(x,Z1+0.6,0.32,0.26,0,0.42,'#e8e2d6',{seg:16});S(x,0.78,Z1+0.6,0.34,'#3f8f4a',{seg:16})});
  /* pintu masuk: kusen + panel kaca geser (terbuka) + kanopi kaca */
@@ -1752,7 +1817,7 @@ function buildCars(cars){if(!cars.length)return;var n=cars.length,m4=new T.Matri
 /* ---------- nav grid + A* ---------- */
 var G={res:0.2,x0:X0-0.5,z0:Z0-0.5};G.w=Math.ceil((X1-X0+1)/G.res);G.h=Math.ceil((Z1-Z0+1)/G.res);G.b=new Uint8Array(G.w*G.h);
 (function(){for(var j=0;j<G.h;j++)for(var i=0;i<G.w;i++){var x=G.x0+(i+0.5)*G.res,z=G.z0+(j+0.5)*G.res,v=0;
- if(x<X0+0.3||x>X1-0.3||z<Z0+0.3||z>Z1-0.3)v=1;if(x>XN-0.3&&z<-CZ-0.1)v=1; /* v15: halaman timur laut (luar gedung) */
+ if(x<X0+0.3||x>X1-0.3||z<Z0+0.3||z>Z1-0.3)v=1;/* v19: x XN..X1 utara = Ruang IT (dulu halaman) */
  for(var k=0;k<OB.length&&!v;k++){var o=OB[k];
   if(o.rx!=null){var ex=(x-o.cx)/o.rx,ez=(z-o.cz)/o.rz;if(ex*ex+ez*ez<1)v=o.code}
   else if(o.r!=null){if(Math.hypot(x-o.cx,z-o.cz)<o.r)v=o.code}
@@ -1781,7 +1846,8 @@ function sp(x,z,yaw,pose,o){o=o||{};return {x:x,z:z,yaw:yaw,pose:pose||'stand',a
 var F={ap:'front'};
 var SPOTS={
  ENGINEER:[sp(-19.1,-12.7,PI),sp(-17.9,-12.7,PI),sp(-24.9,-7.55,PI/2,'sit',F),sp(-24.9,-5.45,PI/2,'sit',F),sp(-13.3,-7.0,PI/2)],
- ADMIN:[sp(-4.35,-6.3,PI/2,'sit'),sp(-2.05,-6.3,-PI/2,'sit'),sp(-5.3,-12.8,PI),sp(-9.7,-8.6,-PI/2)],
+ ADMIN:[sp(-5.3,-12.8,PI),sp(-9.7,-8.6,-PI/2)],
+ IT:[sp(27.8,-12.15,PI),sp(31.75,-12.6,PI),sp(28.6,-8.2,PI/2)],
  BOSS:[sp(4.2,-9.2,PI,'sit'),sp(5.8,-9.2,PI,'sit'),sp(0.62,-7.27,PI/2,'sit',F),sp(0.62,-5.93,PI/2,'sit',F),sp(2.6,-4.0,PI),sp(7.4,-4.0,PI)],
  INVESTMENT:[sp(21.4,-7.0,PI/2,'sit'),sp(23.8,-7.0,-PI/2,'sit'),sp(22.6,-8.2,0,'sit'),sp(22.6,-5.8,PI,'sit'),sp(11.0,-7.55,PI/2,'sit',F),sp(11.0,-5.45,PI/2,'sit',F),sp(22.6,-12.9,PI)],
  LIBRARY:[sp(-24.4,11.6,PI/2,'sit'),sp(-22.0,11.6,-PI/2,'sit'),sp(-21.2,5.4,-PI/2),sp(-18.8,7.2,PI/2),sp(-24.7,5.0,-PI/2)],
@@ -1800,12 +1866,12 @@ CAFE_T.forEach(function(t){SPOTS.CAFE.push(sp(t[0]-1.15,t[1],PI/2,'sit',{cup:1})
 [5.4,7.0,8.6].forEach(function(z){SPOTS.CAFE.push(sp(9.55+LW,z,-PI/2,'stand',{cup:1}))});
 SPOTS.LEISURE=SPOTS.CAFE.concat(SPOTS.ROOFTOP);
 /* kursi santai per ruangan: armchair/sofa/kursi meja yang sudah ada + yang baru (LS). Dipakai agent yang sedang tidak ada kerjaan. */
-var LOUNGE={ENGINEER:[],ADMIN:[],BOSS:[],INVESTMENT:[],LIBRARY:[]};
-(function(){var EX={ENGINEER:[[-24.9,-7.55],[-24.9,-5.45]],ADMIN:[[-4.35,-6.3],[-2.05,-6.3]],BOSS:[[0.62,-7.27],[0.62,-5.93]],INVESTMENT:[[11.0,-7.55],[11.0,-5.45]],LIBRARY:[[-24.4,11.6],[-22.0,11.6]]};
+var LOUNGE={ENGINEER:[],ADMIN:[],BOSS:[],INVESTMENT:[],LIBRARY:[],IT:[]};
+(function(){var EX={ENGINEER:[[-24.9,-7.55],[-24.9,-5.45]],ADMIN:[],BOSS:[[0.62,-7.27],[0.62,-5.93]],INVESTMENT:[[11.0,-7.55],[11.0,-5.45]],LIBRARY:[[-24.4,11.6],[-22.0,11.6]]};
  Object.keys(EX).forEach(function(r){EX[r].forEach(function(c){var f=SPOTS[r].filter(function(q){return Math.abs(q.x-c[0])<0.02&&Math.abs(q.z-c[1])<0.02})[0];if(f){f.lounge=r;LOUNGE[r].push(f)}})});
  LS.forEach(function(q){var q2=sp(q[1],q[2],q[3],'sit',F);q2.lounge=q[0];SPOTS[q[0]].push(q2);LOUNGE[q[0]].push(q2)})})();
-Object.keys(HOME).forEach(function(id){var h=HOME[id];h.spot=sp(h.x,h.z,0,h.pose||'desk');h.spot.home=id;if(!h.pose)chair(h.x,h.z,0,id==='Jon'?'#2a2530':'#3b3f4c',id==='Jon')});
-var HOMEROOM={Prop:'ENGINEER',Flow:'ENGINEER',Tridi:'ENGINEER',Pensi:'ENGINEER',Surja:'ADMIN',Puro:'ADMIN',Invo:'ADMIN',Jon:'BOSS',Anna:'INVESTMENT',Cio:'INVESTMENT',Arsip:'LIBRARY'};
+Object.keys(HOME).forEach(function(id){var h=HOME[id];h.spot=sp(h.x,h.z,0,h.pose||'desk');h.spot.home=id;if(!h.pose)chair(h.x,h.z,0,id==='Jon'?'#2a2530':id==='Iteng'?'#4c1d95':'#3b3f4c',id==='Jon')});
+var HOMEROOM={Prop:'ADMIN',Itung:'ENGINEER',Iteng:'IT',Flow:'ENGINEER',Tridi:'ENGINEER',Pensi:'ENGINEER',Surja:'ADMIN',Puro:'ADMIN',Invo:'ADMIN',Jon:'BOSS',Anna:'INVESTMENT',Cio:'INVESTMENT',Arsip:'LIBRARY'};
 function apOf(s){if(s.ap)return s.ap;var fx=Math.sin(s.yaw),fz=Math.cos(s.yaw),rx=fz,rz=-fx,c;
  if(s.pose==='stand'||s.pose==='counter')c=[[0,0]];
  else if(s.apMode==='front')c=[[fx*0.85,fz*0.85]];
@@ -1814,7 +1880,7 @@ function apOf(s){if(s.ap)return s.ap;var fx=Math.sin(s.yaw),fz=Math.cos(s.yaw),r
  s.ap=nearestFree({x:s.x+c[0][0],z:s.z+c[0][1]});return s.ap}
 
 /* ---------- gabung mesh statis (hemat draw call) ---------- */
-(function mergeStatic(){world.updateMatrixWorld(true);var groups={};
+(function mergeStatic(){if(/[?&]nomerge=1/.test(location.search))return; /* v19: mode tes geometri per-mesh */world.updateMatrixWorld(true);var groups={};
  world.traverse(function(o){if(!o.isMesh||o.isInstancedMesh||Array.isArray(o.material)||o.userData.keep)return;var m=o.material,k=m.uuid+'|'+(o.castShadow?1:0)+(o.receiveShadow?1:0)+'|'+o.renderOrder;(groups[k]=groups[k]||{m:m,c:o.castShadow,r:o.receiveShadow,ro:o.renderOrder,list:[]}).list.push(o)});
  Object.keys(groups).forEach(function(k){var G0=groups[k];if(G0.list.length<2)return;var parts=[],n=0;
   G0.list.forEach(function(o){var g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(o.matrixWorld);parts.push(g);n+=g.attributes.position.count});
@@ -2178,6 +2244,8 @@ function processTalks(){var q=AIO.takeTalks();if(!q.length)return;
   setTimeout(function(){if(!AG[b.id])return;if(rep)realTalk(rep);else{say(b,pickR(ACK),false,x,9)}},2000)},n*6000)})}
 var SMALL={
  Jon:['Kopi dulu, habis itu cek antrean lagi','Tim hari ini kompak ya','Ada yang mau teh? Aku traktir 😄','Santai bentar biar fokus lagi'],
+ Itung:['Debit air limbahnya sudah kuhitung','HRT bak aerasi cek sekali lagi','Dimensi clarifier sudah pas','Kebutuhan blower lagi kuhitung'],
+ Iteng:['Server aman, LED hijau semua','Webhook barusan lancar','Lagi rapikan kode AI Office','Backup dulu sebelum deploy 😄'],
  Prop:['Template proposal makin rapi ya','Klien suka yang ringkas dan jelas','Habis ini lanjut rapikan format','Ngopi dulu biar idenya lancar'],
  Flow:['Diagram alur enak dibikin sambil ngopi','Panah di diagram harus lurus 😄','Lagi kepikiran ikon baru buat flow','Warna diagram jangan terlalu ramai'],
  Tridi:['Render tadi lumayan mulus','Pencahayaan 3D itu seni sendiri','Pengen coba material baru','Kamera sudut atas paling enak dilihat'],
@@ -2231,7 +2299,7 @@ function go(f,instant){if(instant){tween=null;controls.target.copy(f.target);cam
 controls.addEventListener('start',function(){tween=null;curView=null;setRoomBtn(null)});
 function ease(x){return x<0.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2}
 var nav=document.getElementById('rooms');
-var SHORT={ENGINEER:'Engineer',ADMIN:'Admin',BOSS:'Boss',INVESTMENT:'Investment',LIBRARY:'Library',PRINT:'Print',REVIEW:'Review',LOBBY:'Lobby',MEETING:'Meeting',CAFE:'Cafe',ROOFTOP:'Taman'};
+var SHORT={ENGINEER:'Engineer',ADMIN:'Admin',BOSS:'Boss',INVESTMENT:'Investment',IT:'IT',LIBRARY:'Library',PRINT:'Print',REVIEW:'Review',LOBBY:'Lobby',MEETING:'Meeting',CAFE:'Cafe',ROOFTOP:'Taman'};
 [['ALL','Semua']].concat(ROOM_IDS.map(function(k){return [k,SHORT[k]]})).forEach(function(b){var e=document.createElement('button');e.textContent=b[1];e.dataset.k=b[0];e.onclick=function(){if(b[0]==='ALL')viewAll();else focusRoom(b[0]);setRoomBtn(b[0])};nav.appendChild(e)});
 function setRoomBtn(k){nav.querySelectorAll('button').forEach(function(e){e.classList.toggle('on',e.dataset.k===k)})}
 setRoomBtn('ALL');
@@ -2264,7 +2332,7 @@ function frame(){requestAnimationFrame(frame);var dt=Math.min(0.05,clock.getDelt
  lifeTick();
  ambientTick(false);
  for(var id in AG)animAgent(AG[id],dt,TT);
- updateScreens(dt);
+ updateScreens(dt);updateIT(dt);
  if(needPick){needPick=false;var h=lastPE?pick(lastPE):null;if(h!==hovered){if(hovered)hovered.hover=0;hovered=h;if(h)h.hover=1;renderer.domElement.style.cursor=h?'pointer':''}}
  acc1+=dt;if(acc1>1){acc1=0;redraw(clockT);TRADE.forEach(function(s){if(s.ver===MKT.ver[s.k])return;s.ver=MKT.ver[s.k];var u=s.t.userData;drawTrade(u.cx,u.cv.width,u.cv.height,s.i);s.t.needsUpdate=true})}
  renderer.render(scene,camera);updateOverlays()}
