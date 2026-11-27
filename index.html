@@ -2031,7 +2031,7 @@ var TRIP_W={work:{cafe:3,library:2,garden:2,sofa:3},lunch:{cafe:3,garden:2},off:
 var CAFE_SIT=SPOTS.CAFE.filter(function(q){return q.pose==='sit'}),GARDEN_SIT=SPOTS.ROOFTOP.filter(function(q){return q.pose==='sit'});
 function deskOf(a){return HOME[a.id]&&HOME[a.id].spot||null}
 function lunchOut(a){return hr01(a.id+'|L|'+dayKey())<LUNCH_OUT_P}
-function goesHome(a,sl){return hr01(a.id+'|H|'+dayKey())<(HOME_P[sl]||0)}
+function goesHome(a,sl){return false} /* v23: tidak ada agent yang pulang/menghilang; di luar jam kerja semua tetap terlihat santai di sofa/kafe/taman/perpustakaan */
 function exitSpot(a){if(!a._exit){var r=R3.LOBBY,p=nearestFree({x:r.cx+(rnd(hash(a.id)+3)-0.5)*2.4,z:Z1-0.9});a._exit=sp(p.x,p.z,0,'stand');a._exit.exit=1}return a._exit}
 function tripSpot(a,k){var L=k==='cafe'?CAFE_SIT:k==='garden'?GARDEN_SIT:k==='library'?SPOTS.LIBRARY.filter(function(q){return !q.home}):k==='sofa'?(LOUNGE[HOMEROOM[a.id]]||[]):[];return pickFree(L,a)}
 function pickTrip(a,W,excl){var ks=Object.keys(W).filter(function(k){return k!==excl&&!(k==='library'&&HOMEROOM[a.id]==='LIBRARY'&&W.sofa)}),tries=0;
@@ -2155,7 +2155,13 @@ function pickSpot(a,room){
   for(var j=0;j<list.length&&ok;j++)if(Math.hypot(list[j].x-x,list[j].z-z)<1.0)ok=false;
   if(ok)return sp(x,z,PI*0.9,'stand')}
  return sp(r.cx,r.cz,0,'stand')}
-function makeAgent(row){var m=AIO.meta(row.id),P=buildChibi(row.id,m);world.add(P.root);
+/* v23: karakter tetap terang di malam hari (taman/kafe/sofa): material karakter diklon per agent, lalu diberi cahaya diri lembut sesuai tingkat malam */
+var AGLIT_K=0.34,AGLIT_N=0;
+function nightLitPrep(P){var L=[],seen=new Map();P.root.traverse(function(o){if(!o.isMesh||o===P.hit||!o.material||!o.material.isMeshStandardMaterial)return;var m=o.material;
+ if(m.emissive&&m.emissiveIntensity>0&&(m.emissive.r+m.emissive.g+m.emissive.b)>0)return;
+ var c=seen.get(m);if(!c){c=m.clone();c.emissive.copy(m.color);c.emissiveIntensity=(AGLIT_N||0)*AGLIT_K;seen.set(m,c);L.push(c)}o.material=c});P.nl=L}
+function nightLitSet(n){AGLIT_N=n;for(var id in AG){var L=AG[id].P.nl;if(L)for(var i=0;i<L.length;i++)L[i].emissiveIntensity=n*AGLIT_K}}
+function makeAgent(row){var m=AIO.meta(row.id),P=buildChibi(row.id,m);world.add(P.root);nightLitPrep(P);
  var a={id:row.id,P:P,sc:(m.sc||1)*CS,pos:{x:0,z:0},yaw:0,yawT:0,path:[],spot:null,room:null,sit:0,sitT:0,type:0,pray:0,cupA:0,walk:0,phase:0,speed:2.6,seed:rnd(seq++ +1)*10,hover:0,row:row};
  a.spdMul=0.9+rnd(hash(row.id)+7)*0.2; /* v20: tiap agent kecepatan jalannya sedikit beda */
  a.mc=document.createElement('div');a.mc.className='mchat';a.mc.style.display='none';a.mc.innerHTML='<svg viewBox="0 0 24 20"><path d="M3 1h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10l-5 4v-4H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#fff" stroke="#60a5fa" stroke-width="1.5"/><circle cx="7.5" cy="8" r="1.5" fill="#60a5fa"/><circle cx="12" cy="8" r="1.5" fill="#60a5fa"/><circle cx="16.5" cy="8" r="1.5" fill="#60a5fa"/></svg>';ovl.appendChild(a.mc);
@@ -2165,7 +2171,7 @@ function makeAgent(row){var m=AIO.meta(row.id),P=buildChibi(row.id,m);world.add(
  a.say=document.createElement('div');a.say.className='say';a.say.style.display='none';a.say.innerHTML='<span></span>';ovl.appendChild(a.say);
  a.say.addEventListener('click',function(e){e.stopPropagation();if(a.sayRow)AIO.openThreadRow(a.sayRow)});
  P.hit.userData.agent=a;HITS.push(P.hit);AG[row.id]=a;return a}
-function removeAgent(id){var a=AG[id];world.remove(a.P.root);a.tag.remove();a.done.remove();a.say.remove();a.mc.remove();HITS.splice(HITS.indexOf(a.P.hit),1);if(hovered===a)hovered=null;delete AG[id]}
+function removeAgent(id){var a=AG[id];if(a.P.nl)a.P.nl.forEach(function(m){m.dispose()});world.remove(a.P.root);a.tag.remove();a.done.remove();a.say.remove();a.mc.remove();HITS.splice(HITS.indexOf(a.P.hit),1);if(hovered===a)hovered=null;delete AG[id]}
 var CS=1.18;
 function place(a,s){a.spot=s;a.pos={x:s.x,z:s.z};a.yaw=a.yawT=s.yaw;a.path=[];a.sit=a.sitT=(s.pose==='sit'||s.pose==='desk')?1:0;a.P.root.position.set(s.x,0,s.z);a.P.root.rotation.y=s.yaw}
 function goTo(a,s,spd){var prev=a.spot;a.spot=s;var start={x:a.pos.x,z:a.pos.z},pts=[];
@@ -2485,7 +2491,7 @@ function skyTick(force){if(!SKY_ON||!skyDome)return;var now=performance.now();sk
  skyLamps.forEach(function(l){var o=Math.max(0,Math.min(1,(n-0.06-l.off)/0.55));o=o*o*(3-2*o)*(l.in?1:0.85);l.s.material.opacity=o;l.s.visible=o>0.01});
  if(skyPoolMat){skyPoolMat.opacity=0.38*n;skyWashMat.opacity=0.20*n;var pv=n>0.04;skyPools.forEach(function(m){m.visible=pv})}
  skyWin.forEach(function(m){m.color.set(0xffffff).lerp(c.hor,0.55).multiplyScalar(wk);m.color.r+=0.40*n;m.color.g+=0.24*n;m.color.b+=0.06*n});
- glassM.emissiveIntensity=0.32*n;
+ glassM.emissiveIntensity=0.32*n;nightLitSet(n);
  var lum=(c.hor.r*0.2126+c.hor.g*0.7152+c.hor.b*0.0722+c.top.r*0.2126+c.top.g*0.7152+c.top.b*0.0722)/2;document.body.classList.toggle('skylight',lum>0.22);
  skyDome.position.copy(camera.position);skyStars.position.copy(camera.position)}
 skyInit();skyTick(true);
